@@ -1,0 +1,22 @@
+{
+  "name": "stream",
+  "version": "1.0.0",
+  "description": "Replace IP with your Mac's WiFi IP (run: ipconfig getifaddr en0) ```bash openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj \"/CN=192.168.1.212\" -addext \"subjectAltName=IP:192.168.1.212,IP:127.0.0.1\" ```",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hgreen17/Stream.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hgreen17/Stream/issues"
+  },
+  "homepage": "https://github.com/hgreen17/Stream#readme"
+}
