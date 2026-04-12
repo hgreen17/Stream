@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOID SECTOR — Gift Shop</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  :root {
+    --teal: #0ff;
+    --gold: #fa0;
+    --red:  #f44;
+    --bg:   #030a0a;
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--teal);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px 60px;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, #0ff008 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, #00f0ff05 0%, transparent 50%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  header h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--teal);
+    letter-spacing: 8px;
+    text-shadow: 0 0 20px #0ff, 0 0 40px #0ff4;
+  }
+
+  header .sub {
+    font-size: 10px;
+    letter-spacing: 5px;
+    color: #0ff8;
+    margin-top: 4px;
+  }
+
+  .connection-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  input {
+    background: #0ff1;
+    border: 1px solid #0ff4;
+    color: var(--teal);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    padding: 10px 14px;
+    outline: none;
+    letter-spacing: 1px;
+    width: 220px;
+  }
+  input::placeholder { color: #0ff5; }
+  input:focus { border-color: var(--teal); box-shadow: 0 0 10px #0ff3; }
+
+  button {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 10px 22px;
+    background: transparent;
+    border: 1px solid var(--teal);
+    color: var(--teal);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  button:hover { background: #0ff2; box-shadow: 0 0 20px #0ff5; }
+  button:disabled { opacity: 0.3; cursor: default; }
+
+  #status-bar {
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 6px 16px;
+    margin-bottom: 24px;
+    border: 1px solid #0ff3;
+    background: #0ff1;
+    min-width: 320px;
+    text-align: center;
+  }
+
+  /* Target Player Selector */
+  #target-section {
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  #target-section label {
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: #0ff8;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  #player-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .player-btn {
+    padding: 8px 18px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    border-color: #0ff4;
+    color: #0ff8;
+  }
+
+  .player-btn.selected {
+    background: #0ff3;
+    border-color: var(--teal);
+    color: var(--teal);
+    box-shadow: 0 0 15px #0ff4;
+  }
+
+  /* Shop Grid */
+  h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: #0ff9;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  #shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    max-width: 800px;
+    width: 100%;
+    margin-bottom: 32px;
+  }
+
+  .drop-card {
+    border: 1px solid;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    background: #0002;
+  }
+
+  .drop-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .drop-card:hover::before { opacity: 1; }
+  .drop-card:hover { transform: translateY(-2px); }
+  .drop-card:active { transform: scale(0.97); }
+
+  .drop-card.sending { animation: pulse 0.3s ease-out; }
+
+  @keyframes pulse {
+    0% { transform:scale(1); }
+    50% { transform:scale(1.06); }
+    100% { transform:scale(1); }
+  }
+
+  .drop-icon { font-size: 36px; line-height: 1; filter: drop-shadow(0 0 8px currentColor); }
+  .drop-name { font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px; text-align:center; }
+  .drop-desc { font-size:9px; letter-spacing:1px; text-align:center; opacity:0.7; }
+  .drop-price { font-family:'Orbitron',sans-serif; font-size:16px; font-weight:900; }
+  .drop-price span { font-size:10px; opacity:0.7; }
+
+  .drop-card[data-id="health"]    { border-color:#0f46; }
+  .drop-card[data-id="health"]::before { background: radial-gradient(circle, #0f410, transparent 70%); }
+  .drop-card[data-id="health"]:hover  { border-color:#0f4; box-shadow:0 0 20px #0f45; }
+
+  .drop-card[data-id="ammo"]      { border-color:#fa06; }
+  .drop-card[data-id="ammo"]::before { background: radial-gradient(circle, #fa010, transparent 70%); }
+  .drop-card[data-id="ammo"]:hover    { border-color:#fa0; box-shadow:0 0 20px #fa05; }
+
+  .drop-card[data-id="shield"]    { border-color:#08f6; }
+  .drop-card[data-id="shield"]::before { background: radial-gradient(circle, #08f10, transparent 70%); }
+  .drop-card[data-id="shield"]:hover  { border-color:#08f; box-shadow:0 0 20px #08f5; }
+
+  .drop-card[data-id="airstrike"] { border-color:#f406; }
+  .drop-card[data-id="airstrike"]::before { background: radial-gradient(circle, #f4010, transparent 70%); }
+  .drop-card[data-id="airstrike"]:hover { border-color:#f40; box-shadow:0 0 20px #f405; }
+
+  .drop-card[data-id="speed"]     { border-color:#ff06; }
+  .drop-card[data-id="speed"]::before { background: radial-gradient(circle, #ff010, transparent 70%); }
+  .drop-card[data-id="speed"]:hover   { border-color:#ff0; box-shadow:0 0 20px #ff05; }
+
+  /* Activity Feed */
+  #feed-section { max-width: 800px; width: 100%; }
+
+  #activity-feed {
+    border: 1px solid #0ff3;
+    background: #0002;
+    padding: 14px;
+    min-height: 120px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .feed-item {
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 4px 0;
+    border-bottom: 1px solid #0ff1;
+    animation: slideIn 0.3s ease-out;
+  }
+  @keyframes slideIn { from {opacity:0;transform:translateX(-10px)} to {opacity:1;transform:none} }
+
+  .feed-time { color: #0ff5; margin-right: 8px; }
+
+  /* Player Health Display */
+  #player-stats {
+    max-width: 800px;
+    width: 100%;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stat-card {
+    border: 1px solid #0ff3;
+    padding: 10px 16px;
+    background: #0001;
+    min-width: 140px;
+    text-align: center;
+  }
+
+  .stat-name { font-size: 9px; letter-spacing: 3px; color: #0ff8; margin-bottom: 4px; }
+  .stat-hp { font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; }
+  .stat-bar { height:3px; background:#0ff2; margin-top:6px; border-radius:2px; overflow:hidden; }
+  .stat-bar-fill { height:100%; background:var(--teal); transition:width 0.5s; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VOID SECTOR</h1>
+  <div class="sub">viewer gift shop — send drops to players</div>
+</header>
+
+<div class="connection-bar">
+  <input id="viewerName" placeholder="YOUR NAME" value="Viewer">
+  <input id="wsUrl" placeholder="ws://localhost:8080" value="ws://localhost:8080">
+  <button id="connectBtn">CONNECT</button>
+</div>
+
+<div id="status-bar">● NOT CONNECTED — start server.js first</div>
+
+<div id="target-section">
+  <label>SELECT TARGET PLAYER</label>
+  <div id="player-list">
+    <div style="font-size:11px;color:#0ff5;letter-spacing:2px">waiting for players...</div>
+  </div>
+</div>
+
+<div id="player-stats"></div>
+
+<h2>— AVAILABLE DROPS —</h2>
+
+<div id="shop-grid"></div>
+
+<div id="feed-section">
+  <h2>— GIFT ACTIVITY —</h2>
+  <div id="activity-feed">
+    <div class="feed-item" style="color:#0ff5"><span class="feed-time">--:--</span>Waiting for connection...</div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let ws = null;
+let players = new Map();    // id → {name, state}
+let selectedTarget = null;
+let drops = {};
+
+const FALLBACK_DROPS = {
+  health:    { label:'Health Pack',  price:2, color:'#0f4', icon:'❤️',  desc:'+50 HP restored' },
+  ammo:      { label:'Ammo Crate',   price:1, color:'#fa0', icon:'🔫',  desc:'+30 rounds delivered' },
+  shield:    { label:'Shield',       price:3, color:'#08f', icon:'🛡️',  desc:'Absorbs next hit (70%)' },
+  airstrike: { label:'Airstrike',    price:5, color:'#f40', icon:'💥',  desc:'Wipes enemies around player' },
+  speed:     { label:'Speed Boost',  price:2, color:'#ff0', icon:'⚡',  desc:'2× speed for 10 seconds' },
+};
+
+// ─── Connect ──────────────────────────────────────────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', connect);
+
+function connect() {
+  const url  = document.getElementById('wsUrl').value.trim()      || 'ws://localhost:8080';
+  const name = document.getElementById('viewerName').value.trim() || 'Viewer';
+
+  setStatus('connecting...', '#fa0');
+  try { ws = new WebSocket(url); } catch(e) { setStatus('Invalid URL', '#f44'); return; }
+
+  ws.onopen = () => {
+    setStatus('● CONNECTED — ready to send gifts!', '#0f6');
+    ws.send(JSON.stringify({ type:'set_role', role:'viewer' }));
+    ws.send(JSON.stringify({ type:'set_name', name }));
+    buildShop(FALLBACK_DROPS);
+    addFeed('Connected to VOID SECTOR server', '#0f6');
+  };
+
+  ws.onclose = () => {
+    setStatus('● DISCONNECTED', '#f44');
+    addFeed('Disconnected from server', '#f44');
+  };
+
+  ws.onerror = () => setStatus('Connection failed — is server.js running?', '#f44');
+
+  ws.onmessage = (e) => {
+    let msg; try { msg = JSON.parse(e.data); } catch { return; }
+    handleMsg(msg);
+  };
+}
+
+function handleMsg(msg) {
+  switch(msg.type) {
+    case 'init':
+      if(msg.drops) { drops=msg.drops; buildShop(drops); }
+      for(const p of msg.players) {
+        if(p.role !== 'viewer') players.set(p.id, { name:p.name, state:p.state });
+      }
+      updatePlayerUI();
+      break;
+
+    case 'player_join':
+      if(msg.role !== 'viewer') {
+        players.set(msg.id, { name:msg.name, state:msg.state||{health:100} });
+        updatePlayerUI();
+        addFeed(`${msg.name} entered the arena`, '#0ff');
+      }
+      break;
+
+    case 'player_leave':
+      if(players.has(msg.id)) {
+        addFeed(`${players.get(msg.id).name} left`, '#888');
+        players.delete(msg.id);
+        if(selectedTarget===msg.id) selectedTarget=null;
+        updatePlayerUI();
+      }
+      break;
+
+    case 'state_update':
+      if(players.has(msg.id)) {
+        Object.assign(players.get(msg.id).state, msg.state);
+        updateStatCards();
+      }
+      break;
+
+    case 'gift_announce':
+      addFeed(`${msg.viewerName} → ${getPlayerName(msg.targetId)}: ${msg.drop.label}`, msg.drop.color||'#0ff');
+      break;
+
+    case 'player_died':
+      addFeed(`${getPlayerName(msg.id)} was eliminated by ${getPlayerName(msg.killedBy)}`, '#fa0');
+      break;
+
+    case 'player_renamed':
+      if(players.has(msg.id)) players.get(msg.id).name=msg.name;
+      updatePlayerUI();
+      break;
+  }
+}
+
+function getPlayerName(id) {
+  return players.get(id)?.name || `Player ${id}`;
+}
+
+// ─── Build shop ───────────────────────────────────────────────────────────────
+function buildShop(dropDefs) {
+  const grid = document.getElementById('shop-grid');
+  grid.innerHTML = '';
+  const merged = { ...FALLBACK_DROPS };
+  for(const [k,v] of Object.entries(dropDefs)) merged[k]={...merged[k],...v};
+
+  for(const [id, drop] of Object.entries(merged)) {
+    const card = document.createElement('div');
+    card.className = 'drop-card';
+    card.dataset.id = id;
+    card.style.setProperty('--drop-color', drop.color||'#0ff');
+    card.innerHTML = `
+      <div class="drop-icon">${drop.icon||'★'}</div>
+      <div class="drop-name" style="color:${drop.color||'#0ff'}">${drop.label}</div>
+      <div class="drop-desc">${drop.desc||''}</div>
+      <div class="drop-price" style="color:${drop.color||'#0ff'}">${drop.price||'?'} <span>credits</span></div>
+    `;
+    card.addEventListener('click', () => sendGift(id, drop));
+    grid.appendChild(card);
+  }
+}
+
+// ─── Send gift ────────────────────────────────────────────────────────────────
+function sendGift(dropId, drop) {
+  if(!ws || ws.readyState !== 1) { setStatus('Not connected!', '#f44'); return; }
+
+  // Pick target
+  const targetId = selectedTarget || (players.size > 0 ? [...players.keys()][0] : null);
+  if(targetId === null && players.size === 0) {
+    addFeed('No players online to gift!', '#f44');
+    return;
+  }
+
+  const viewerName = document.getElementById('viewerName').value.trim() || 'Anonymous';
+
+  ws.send(JSON.stringify({
+    type: 'gift',
+    dropId,
+    targetId,
+    viewerName
+  }));
+
+  // Visual feedback
+  const card = document.querySelector(`.drop-card[data-id="${dropId}"]`);
+  if(card) { card.classList.add('sending'); setTimeout(()=>card.classList.remove('sending'),400); }
+
+  addFeed(`You sent ${drop.label} to ${getPlayerName(targetId)}!`, drop.color||'#0ff');
+}
+
+// ─── Player UI ────────────────────────────────────────────────────────────────
+function updatePlayerUI() {
+  const list = document.getElementById('player-list');
+  if(players.size === 0) {
+    list.innerHTML = '<div style="font-size:11px;color:#0ff5;letter-spacing:2px">no players online...</div>';
+    selectedTarget = null;
+    updateStatCards();
+    return;
+  }
+
+  list.innerHTML = '';
+  let first = true;
+  for(const [id, p] of players) {
+    if(first && selectedTarget === null) { selectedTarget = id; first = false; }
+    const btn = document.createElement('button');
+    btn.className = 'player-btn' + (id === selectedTarget ? ' selected' : '');
+    btn.textContent = p.name || `Player ${id}`;
+    btn.addEventListener('click', () => {
+      selectedTarget = id;
+      document.querySelectorAll('.player-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    list.appendChild(btn);
+  }
+  updateStatCards();
+}
+
+function updateStatCards() {
+  const container = document.getElementById('player-stats');
+  container.innerHTML = '';
+  for(const [id, p] of players) {
+    const hp = Math.max(0, Math.min(100, p.state?.health ?? 100));
+    const hpColor = hp>50 ? '#0f4' : hp>25 ? '#fa0' : '#f44';
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.innerHTML = `
+      <div class="stat-name">${p.name||`Player ${id}`}</div>
+      <div class="stat-hp" style="color:${hpColor}">${hp} HP</div>
+      <div class="stat-bar"><div class="stat-bar-fill" style="width:${hp}%;background:${hpColor}"></div></div>
+      <div style="font-size:9px;color:#0ff6;margin-top:4px;letter-spacing:1px">AMM: ${p.state?.ammo??'?'} · K: ${p.state?.kills||0}</div>
+    `;
+    container.appendChild(card);
+  }
+}
+
+// ─── Activity feed ────────────────────────────────────────────────────────────
+function addFeed(text, color='#0ff') {
+  const feed = document.getElementById('activity-feed');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.style.color = color;
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  item.innerHTML = `<span class="feed-time">${t}</span>${text}`;
+  feed.prepend(item);
+  if(feed.children.length > 50) feed.lastChild.remove();
+}
+
+function setStatus(text, color='#0ff') {
+  const el = document.getElementById('status-bar');
+  el.textContent = text;
+  el.style.color = color;
+  el.style.borderColor = color+'4';
+}
+
+// ─── Poll player stats every 2s ───────────────────────────────────────────────
+setInterval(updateStatCards, 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>STREAM BATTLE</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap');
+
+:root{
+  --bg:#08060e;--bg2:#0e0a1a;--bg3:#130f1f;
+  --teal:#0ff;--gold:#fa0;--red:#f44;--green:#0f6;--purple:#b06fff;
+  --card-w:90px;--card-h:128px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',sans-serif;overflow:hidden}
+
+/* ═══ SCREENS ═══════════════════════════════════════════════════════════════ */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:10;overflow-y:auto}
+.screen.active{display:flex}
+
+/* ═══ LOGIN ══════════════════════════════════════════════════════════════════ */
+#screen-login{background:radial-gradient(ellipse at 50% 30%,#1a0a2e,var(--bg))}
+.logo{font-family:'Orbitron',sans-serif;font-size:clamp(32px,8vw,56px);font-weight:900;letter-spacing:6px;
+  background:linear-gradient(135deg,var(--teal),var(--purple),var(--gold));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:6px}
+.logo-sub{font-size:11px;letter-spacing:6px;color:#fff5;text-align:center;margin-bottom:36px}
+.login-box{background:#ffffff08;border:1px solid #ffffff15;padding:28px;width:min(340px,90vw);display:flex;flex-direction:column;gap:14px;border-radius:4px}
+.login-box h2{font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:4px;color:var(--teal);text-align:center}
+.inp{background:#ffffff0a;border:1px solid #ffffff20;color:#fff;font-family:'Share Tech Mono',monospace;font-size:14px;padding:12px 14px;outline:none;width:100%;letter-spacing:1px;border-radius:2px}
+.inp:focus{border-color:var(--teal);box-shadow:0 0 10px #0ff2}
+.inp::placeholder{color:#ffffff30}
+.role-row{display:flex;gap:8px}
+.role-btn{flex:1;padding:10px;background:transparent;border:1px solid #ffffff20;color:#ffffff60;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .2s;border-radius:2px}
+.role-btn.sel{border-color:var(--purple);color:var(--purple);background:#b06fff15;box-shadow:0 0 12px #b06fff30}
+.btn-primary{padding:13px;background:linear-gradient(135deg,#1a0a2e,#2a0a4e);border:1px solid var(--purple);color:var(--purple);font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:4px;cursor:pointer;transition:all .2s;border-radius:2px}
+.btn-primary:hover{background:#b06fff20;box-shadow:0 0 20px #b06fff40}
+.err{font-size:11px;color:var(--red);text-align:center;letter-spacing:1px;min-height:16px}
+
+/* ═══ LOBBY ══════════════════════════════════════════════════════════════════ */
+#screen-lobby{background:var(--bg);padding:0;justify-content:flex-start;overflow-y:auto}
+.lobby-header{width:100%;padding:14px 20px;background:var(--bg2);border-bottom:1px solid #ffffff10;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+.lobby-title{font-family:'Orbitron',sans-serif;font-size:16px;font-weight:900;color:var(--teal);letter-spacing:4px}
+.user-badge{display:flex;align-items:center;gap:8px}
+.user-name{font-size:13px;font-weight:600;letter-spacing:1px;color:var(--gold)}
+.user-role{font-size:9px;letter-spacing:3px;color:#ffffff50;text-transform:uppercase}
+.lobby-body{width:100%;max-width:700px;padding:20px;display:flex;flex-direction:column;gap:16px;margin:0 auto}
+.section-title{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:4px;color:#ffffff40;margin-bottom:10px}
+.streamer-card{background:var(--bg2);border:1px solid #ffffff10;padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .2s;border-radius:4px}
+.streamer-card:hover{border-color:var(--purple);background:#b06fff08;box-shadow:0 0 15px #b06fff15}
+.streamer-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--teal));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;text-transform:uppercase}
+.streamer-info{flex:1}
+.streamer-name{font-size:16px;font-weight:700;letter-spacing:1px}
+.streamer-status{font-size:11px;letter-spacing:2px;margin-top:2px}
+.status-idle{color:var(--green)}
+.status-battling{color:var(--gold)}
+.status-challenging{color:var(--red)}
+.challenge-btn{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;padding:8px 14px;background:transparent;border:1px solid var(--purple);color:var(--purple);cursor:pointer;transition:all .2s;border-radius:2px}
+.challenge-btn:hover{background:#b06fff20;box-shadow:0 0 12px #b06fff30}
+.my-stream-box{background:var(--bg2);border:1px solid #ffffff10;padding:16px;border-radius:4px}
+#my-video{width:100%;max-height:200px;object-fit:cover;border-radius:4px;background:#000;display:block}
+.stream-controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.stream-btn{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;padding:8px 14px;background:transparent;border:1px solid #ffffff30;color:#ffffff70;cursor:pointer;transition:all .2s;border-radius:2px;flex:1}
+.stream-btn.active{border-color:var(--green);color:var(--green)}
+.stream-btn:hover{background:#ffffff10}
+.empty-state{text-align:center;padding:40px;color:#ffffff30;font-size:13px;letter-spacing:2px}
+
+/* ═══ CHALLENGE MODAL ════════════════════════════════════════════════════════ */
+#modal-challenge{position:fixed;inset:0;background:#000a;z-index:50;display:none;align-items:center;justify-content:center}
+#modal-challenge.show{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--purple);padding:28px;width:min(380px,90vw);border-radius:4px;display:flex;flex-direction:column;gap:14px}
+.modal-title{font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;color:var(--purple);letter-spacing:3px;text-align:center}
+.modal-sub{font-size:12px;color:#ffffff60;text-align:center;letter-spacing:1px}
+.mode-row{display:flex;gap:8px}
+.mode-btn{flex:1;padding:10px;background:transparent;border:1px solid #ffffff20;color:#ffffff50;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s;border-radius:2px}
+.mode-btn.sel{border-color:var(--gold);color:var(--gold);background:#fa020}
+.num-input{background:#ffffff0a;border:1px solid #ffffff20;color:#fff;font-family:'Share Tech Mono',monospace;font-size:16px;padding:10px;outline:none;width:100%;text-align:center;border-radius:2px}
+.modal-row{display:flex;gap:8px}
+.btn-cancel{flex:1;padding:11px;background:transparent;border:1px solid #ffffff20;color:#ffffff50;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:3px;cursor:pointer;border-radius:2px}
+.btn-cancel:hover{background:#ffffff10}
+
+/* ═══ INCOMING CHALLENGE ═════════════════════════════════════════════════════ */
+#modal-incoming{position:fixed;inset:0;background:#000b;z-index:60;display:none;align-items:center;justify-content:center}
+#modal-incoming.show{display:flex}
+.incoming-box{background:var(--bg2);border:1px solid var(--gold);padding:28px;width:min(360px,90vw);border-radius:4px;display:flex;flex-direction:column;gap:14px;text-align:center}
+.incoming-title{font-family:'Orbitron',sans-serif;font-size:13px;color:var(--gold);letter-spacing:3px}
+.challenger-name{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:900;color:#fff;letter-spacing:2px}
+.challenge-config{font-size:12px;color:#ffffff60;letter-spacing:1px}
+.btn-accept{padding:12px;background:linear-gradient(135deg,#0a2e0a,#0a4e0a);border:1px solid var(--green);color:var(--green);font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:4px;cursor:pointer;border-radius:2px;transition:all .2s}
+.btn-accept:hover{box-shadow:0 0 20px #0f640}
+.btn-decline{padding:12px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:4px;cursor:pointer;border-radius:2px}
+
+/* ═══ BATTLE ARENA ═══════════════════════════════════════════════════════════ */
+#screen-battle{background:var(--bg);padding:0;justify-content:flex-start;overflow:hidden}
+.battle-layout{width:100%;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* Video strip */
+.video-strip{width:100%;height:35vh;display:flex;background:#000;position:relative;flex-shrink:0}
+.video-half{flex:1;position:relative;overflow:hidden}
+.video-half video{width:100%;height:100%;object-fit:cover}
+.video-label{position:absolute;bottom:8px;left:10px;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;background:#000a;padding:3px 8px;border-radius:2px}
+.video-divider{position:absolute;left:50%;top:0;bottom:0;width:3px;background:linear-gradient(to bottom,transparent,var(--purple),transparent);transform:translateX(-50%);z-index:5}
+.vs-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:#fff;background:var(--bg2);border:2px solid var(--purple);padding:4px 10px;border-radius:20px;z-index:6;letter-spacing:2px}
+
+/* HP / Score bar */
+.battle-stats{width:100%;padding:8px 14px;background:var(--bg2);border-bottom:1px solid #ffffff10;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.stat-player{flex:1;display:flex;flex-direction:column;gap:3px}
+.stat-name{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--teal)}
+.stat-name.right{text-align:right;color:var(--gold)}
+.hp-bar-wrap{height:8px;background:#ffffff15;border-radius:4px;overflow:hidden}
+.hp-bar{height:100%;border-radius:4px;transition:width .5s;background:linear-gradient(90deg,var(--green),var(--teal))}
+.hp-bar.low{background:linear-gradient(90deg,var(--red),#f80)}
+.stat-score{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;text-align:center;color:#fff;white-space:nowrap;min-width:60px}
+.stat-round{font-size:9px;letter-spacing:3px;color:#ffffff40;text-align:center}
+
+/* Battle stage (animation area) */
+.battle-stage{flex:1;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 50%,#1a0a2e 0%,var(--bg) 70%)}
+.stage-fighter{position:absolute;bottom:30%;display:flex;flex-direction:column;align-items:center;transition:left .15s ease-in,right .15s ease-in,transform .15s}
+#sf-left{left:8%}
+#sf-right{right:8%}
+.sf-wrap{position:relative;display:flex;flex-direction:column;align-items:center}
+.sf-canvas{position:absolute;inset:-20px;width:calc(100%+40px);height:calc(100%+40px);pointer-events:none;z-index:1}
+.sf-emoji{font-size:52px;line-height:1;position:relative;z-index:2;filter:drop-shadow(0 0 10px currentColor);transition:transform .1s}
+.sf-name{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:2px;margin-top:4px;opacity:.7;position:relative;z-index:2}
+#stage-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.stage-msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Orbitron',sans-serif;font-size:clamp(14px,4vw,22px);font-weight:900;letter-spacing:4px;color:#fff;text-shadow:0 0 20px var(--purple);text-align:center;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
+.dmg-number{position:absolute;font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;pointer-events:none;animation:dmgFloat 1.5s ease-out forwards}
+@keyframes dmgFloat{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(1.3)}}
+
+/* Hand & controls */
+.battle-controls{width:100%;background:var(--bg2);border-top:1px solid #ffffff10;padding:10px 14px;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.hand-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;align-items:flex-end;min-height:calc(var(--card-h) + 12px);justify-content:center}
+.hand-row::-webkit-scrollbar{height:3px}
+.hand-row::-webkit-scrollbar-thumb{background:#ffffff20}
+
+/* Cards */
+.card{width:var(--card-w);height:var(--card-h);border-radius:6px;border:1.5px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:all .2s;background:linear-gradient(160deg,#0d0820,#080612);flex-shrink:0;position:relative;user-select:none}
+.card:hover{transform:translateY(-10px) scale(1.05)}
+.card.selected{transform:translateY(-16px) scale(1.08);box-shadow:0 0 25px currentColor}
+.card.disabled{opacity:.35;cursor:default;pointer-events:none}
+.card-icon{font-size:clamp(22px,5vw,30px);line-height:1}
+.card-name{font-family:'Orbitron',sans-serif;font-size:clamp(6px,1.5vw,8px);font-weight:700;letter-spacing:1px;text-align:center;line-height:1.2}
+.card-sub{font-size:clamp(6px,1.3vw,7px);opacity:.6;letter-spacing:.5px;text-align:center}
+.card-badge{position:absolute;top:-6px;right:-6px;background:var(--gold);color:#000;font-size:7px;font-family:'Orbitron',sans-serif;font-weight:700;padding:2px 4px;border-radius:8px}
+
+.play-row{display:flex;gap:8px;align-items:center}
+#play-btn{flex:1;padding:11px;background:transparent;border:2px solid var(--gold);color:var(--gold);font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:4px;cursor:pointer;transition:all .2s;border-radius:2px}
+#play-btn:hover:not(:disabled){background:#fa015;box-shadow:0 0 20px #fa040}
+#play-btn:disabled{opacity:.3;cursor:default}
+#play-btn.locked{border-color:var(--teal);color:var(--teal)}
+.status-pill{font-size:10px;letter-spacing:2px;color:#ffffff50;padding:6px 10px;background:#ffffff08;border-radius:20px;white-space:nowrap}
+
+/* ═══ ANIMATIONS ══════════════════════════════════════════════════════════════ */
+@keyframes shakeLeft{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(4px)}}
+@keyframes shakeRight{0%,100%{transform:translateX(0)}25%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
+@keyframes flashRed{0%,100%{background:transparent}50%{background:#f443}}
+@keyframes victoryPulse{0%,100%{text-shadow:0 0 20px var(--gold)}50%{text-shadow:0 0 40px var(--gold),0 0 80px var(--gold)}}
+
+/* ═══ MATCH OVER ══════════════════════════════════════════════════════════════ */
+#modal-matchover{position:fixed;inset:0;background:#000d;z-index:80;display:none;align-items:center;justify-content:center}
+#modal-matchover.show{display:flex}
+.matchover-box{background:var(--bg2);border:1px solid var(--gold);padding:32px;width:min(380px,90vw);border-radius:4px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.matchover-title{font-family:'Orbitron',sans-serif;font-size:36px;font-weight:900;letter-spacing:4px;animation:victoryPulse 1.5s infinite}
+.matchover-winner{font-size:18px;font-weight:600;color:#fff;letter-spacing:2px}
+.matchover-score{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--teal);letter-spacing:4px}
+
+/* ═══ TOAST ══════════════════════════════════════════════════════════════════ */
+#toast-container{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--bg2);border:1px solid;padding:10px 20px;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;border-radius:4px;animation:toastIn .3s ease-out;white-space:nowrap}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+
+/* ═══ LOG ════════════════════════════════════════════════════════════════════ */
+#battle-log{position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:#000a;pointer-events:none;max-height:60px;overflow:hidden}
+.log-line{font-size:10px;letter-spacing:1px;line-height:1.6;opacity:.8}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN SCREEN ═══════════════════════════════════════════════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="logo">STREAM BATTLE</div>
+  <div class="logo-sub">live card arena</div>
+  <div class="login-box">
+    <h2>ENTER ARENA</h2>
+    <input class="inp" id="ln-name" placeholder="USERNAME" maxlength="16" autocomplete="off">
+    <input class="inp" id="ln-pin" placeholder="PIN (4 digits)" maxlength="4" type="password" inputmode="numeric">
+    <div class="role-row">
+      <button class="role-btn sel" id="role-streamer" onclick="selRole('streamer')">📡 STREAMER</button>
+      <button class="role-btn" id="role-spectator" onclick="selRole('spectator')">👁 SPECTATOR</button>
+    </div>
+    <div class="err" id="ln-err"></div>
+    <button class="btn-primary" onclick="doLogin()">ENTER</button>
+  </div>
+</div>
+
+<!-- ═══ LOBBY SCREEN ════════════════════════════════════════════════════════ -->
+<div id="screen-lobby" class="screen">
+  <div class="lobby-header">
+    <div class="lobby-title">STREAM BATTLE</div>
+    <div class="user-badge">
+      <div>
+        <div class="user-name" id="lb-name"></div>
+        <div class="user-role" id="lb-role"></div>
+      </div>
+    </div>
+  </div>
+  <div class="lobby-body">
+    <!-- My stream (streamers only) -->
+    <div id="my-stream-section" style="display:none">
+      <div class="section-title">YOUR STREAM</div>
+      <div class="my-stream-box">
+        <video id="my-video" autoplay muted playsinline></video>
+        <div class="stream-controls">
+          <button class="stream-btn" id="btn-cam" onclick="toggleCam()">📷 CAMERA OFF</button>
+          <button class="stream-btn" id="btn-mic" onclick="toggleMic()">🎙 MIC OFF</button>
+        </div>
+      </div>
+    </div>
+    <!-- Live streamers -->
+    <div>
+      <div class="section-title">LIVE STREAMERS — CLICK TO CHALLENGE</div>
+      <div id="streamer-list">
+        <div class="empty-state">No streamers online yet...</div>
+      </div>
+    </div>
+    <!-- Spectator note -->
+    <div id="spectator-note" style="display:none;text-align:center;padding:20px;color:#ffffff40;font-size:13px;letter-spacing:1px;line-height:2">
+      You are spectating.<br>
+      Open <b style="color:var(--teal)">shop.html</b> to send gifts during battles.<br>
+      Click a battle in progress to watch.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CHALLENGE MODAL ══════════════════════════════════════════════════════ -->
+<div id="modal-challenge">
+  <div class="modal-box">
+    <div class="modal-title">CHALLENGE</div>
+    <div class="modal-sub" id="ch-target-name">Challenging Player</div>
+    <div class="section-title" style="text-align:center">MATCH FORMAT</div>
+    <div class="mode-row">
+      <button class="mode-btn sel" id="mode-wins" onclick="selMode('wins')">🏆 FIRST TO WIN</button>
+      <button class="mode-btn" id="mode-hp" onclick="selMode('hp')">❤️ HP BATTLE</button>
+    </div>
+    <div id="mode-wins-cfg">
+      <div style="font-size:11px;color:#ffffff50;letter-spacing:1px;margin-bottom:6px;text-align:center">Wins needed to win match:</div>
+      <input class="num-input" id="cfg-wins" type="number" value="5" min="1" max="20">
+    </div>
+    <div id="mode-hp-cfg" style="display:none">
+      <div style="font-size:11px;color:#ffffff50;letter-spacing:1px;margin-bottom:6px;text-align:center">Starting HP per player:</div>
+      <input class="num-input" id="cfg-hp" type="number" value="100" min="20" max="500" step="10">
+    </div>
+    <div class="modal-row">
+      <button class="btn-cancel" onclick="closeChallenge()">CANCEL</button>
+      <button class="btn-primary" style="flex:1" onclick="sendChallenge()">SEND ⚔️</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ INCOMING CHALLENGE ════════════════════════════════════════════════════ -->
+<div id="modal-incoming">
+  <div class="incoming-box">
+    <div class="incoming-title">⚔️ CHALLENGE RECEIVED</div>
+    <div class="challenger-name" id="ic-name">Player</div>
+    <div class="challenge-config" id="ic-config">First to 5 wins</div>
+    <button class="btn-accept" onclick="respondChallenge(true)">ACCEPT BATTLE</button>
+    <button class="btn-decline" onclick="respondChallenge(false)">DECLINE</button>
+  </div>
+</div>
+
+<!-- ═══ SPECTATOR WATCH SCREEN ════════════════════════════════════════════════ -->
+<div id="screen-watch" class="screen">
+  <div class="battle-layout">
+    <!-- Video feeds from WebRTC streams -->
+    <div class="video-strip">
+      <div class="video-half">
+        <video id="watch-video-0" autoplay playsinline muted></video>
+        <div class="video-label" id="watch-name-0" style="color:var(--teal)">Player 1</div>
+      </div>
+      <div class="video-divider"></div>
+      <div class="vs-badge">VS</div>
+      <div class="video-half">
+        <video id="watch-video-1" autoplay playsinline muted></video>
+        <div class="video-label" id="watch-name-1" style="color:var(--gold)">Player 2</div>
+      </div>
+    </div>
+    <!-- Stats -->
+    <div class="battle-stats">
+      <div class="stat-player">
+        <div class="stat-name" id="watch-stat-name0">Player 1</div>
+        <div class="hp-bar-wrap" id="watch-hp-wrap0" style="display:none">
+          <div class="hp-bar" id="watch-hp-bar0" style="width:100%"></div>
+        </div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--teal)" id="watch-hp-text0"></div>
+      </div>
+      <div style="text-align:center">
+        <div class="stat-round" id="watch-round-label">ROUND</div>
+        <div class="stat-score" id="watch-score">0 — 0</div>
+      </div>
+      <div class="stat-player" style="align-items:flex-end">
+        <div class="stat-name right" id="watch-stat-name1">Player 2</div>
+        <div class="hp-bar-wrap" id="watch-hp-wrap1" style="display:none;direction:rtl">
+          <div class="hp-bar" id="watch-hp-bar1" style="width:100%"></div>
+        </div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--gold);text-align:right" id="watch-hp-text1"></div>
+      </div>
+    </div>
+    <!-- Stage - reuses same canvas/fighter elements -->
+    <div class="battle-stage" id="watch-stage">
+      <canvas id="watch-canvas"></canvas>
+      <div class="stage-fighter" id="wsf-left" style="display:none">
+        <div class="sf-wrap">
+          <canvas class="sf-canvas" id="wsf-canvas-0" width="160" height="160"></canvas>
+          <div class="sf-emoji" id="wsf-emoji-0"></div>
+          <div class="sf-name" id="wsf-name-0"></div>
+        </div>
+      </div>
+      <div class="stage-fighter" id="wsf-right" style="display:none">
+        <div class="sf-wrap">
+          <canvas class="sf-canvas" id="wsf-canvas-1" width="160" height="160"></canvas>
+          <div class="sf-emoji" id="wsf-emoji-1"></div>
+          <div class="sf-name" id="wsf-name-1"></div>
+        </div>
+      </div>
+      <div class="stage-msg" id="watch-stage-msg"></div>
+      <div id="watch-battle-log"></div>
+    </div>
+    <!-- Status bar (no hand/play controls) -->
+    <div class="battle-controls" style="padding:8px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="status-pill" id="watch-status">Watching...</div>
+        <button class="btn-cancel" onclick="leaveWatch()" style="padding:8px 18px;font-size:9px">LEAVE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BATTLE ARENA ══════════════════════════════════════════════════════════ -->
+<div id="screen-battle" class="screen">
+  <div class="battle-layout">
+    <!-- Video -->
+    <div class="video-strip">
+      <div class="video-half" id="vid0">
+        <video id="video-p0" autoplay playsinline muted></video>
+        <div class="video-label" id="vlabel0" style="color:var(--teal)">Player 1</div>
+      </div>
+      <div class="video-divider"></div>
+      <div class="vs-badge">VS</div>
+      <div class="video-half" id="vid1">
+        <video id="video-p1" autoplay playsinline></video>
+        <div class="video-label" id="vlabel1" style="color:var(--gold)">Player 2</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="battle-stats">
+      <div class="stat-player">
+        <div class="stat-name" id="stat-name0">Player 1</div>
+        <div class="hp-bar-wrap" id="hp-wrap0" style="display:none">
+          <div class="hp-bar" id="hp-bar0" style="width:100%"></div>
+        </div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--teal)" id="hp-text0"></div>
+      </div>
+      <div style="text-align:center">
+        <div class="stat-round" id="stat-round-label">ROUND</div>
+        <div class="stat-score" id="stat-score">0 — 0</div>
+      </div>
+      <div class="stat-player" style="align-items:flex-end">
+        <div class="stat-name right" id="stat-name1">Player 2</div>
+        <div class="hp-bar-wrap" id="hp-wrap1" style="display:none;direction:rtl">
+          <div class="hp-bar" id="hp-bar1" style="width:100%"></div>
+        </div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--gold);text-align:right" id="hp-text1"></div>
+      </div>
+    </div>
+
+    <!-- Stage -->
+    <div class="battle-stage" id="battle-stage">
+      <canvas id="stage-canvas"></canvas>
+      <!-- DOM-based elemental fighters -->
+      <div class="stage-fighter" id="sf-left" style="display:none">
+        <div class="sf-wrap">
+          <canvas class="sf-canvas" id="sf-canvas-0" width="160" height="160"></canvas>
+          <div class="sf-emoji" id="sf-emoji-0"></div>
+          <div class="sf-name" id="sf-name-0"></div>
+        </div>
+      </div>
+      <div class="stage-fighter" id="sf-right" style="display:none">
+        <div class="sf-wrap">
+          <canvas class="sf-canvas" id="sf-canvas-1" width="160" height="160"></canvas>
+          <div class="sf-emoji" id="sf-emoji-1"></div>
+          <div class="sf-name" id="sf-name-1"></div>
+        </div>
+      </div>
+      <div class="stage-msg" id="stage-msg"></div>
+      <div id="battle-log"></div>
+    </div>
+
+    <!-- Hand & controls -->
+    <div class="battle-controls">
+      <div class="hand-row" id="hand-row"></div>
+      <div class="play-row" style="display:flex;gap:8px;align-items:center">
+        <div class="status-pill" id="battle-status">Select a card</div>
+        
+        <button id="play-btn" disabled onclick="playCard()">PLAY CARD</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MATCH OVER ════════════════════════════════════════════════════════════ -->
+<div id="modal-matchover">
+  <div class="matchover-box">
+    <div class="matchover-title" id="mo-title" style="color:var(--gold)">VICTORY!</div>
+    <div class="matchover-winner" id="mo-winner"></div>
+    <div class="matchover-score" id="mo-score"></div>
+    <div id="mo-rematch-status" style="font-size:12px;color:#ffffff60;min-height:16px;"></div>
+    <div style="display:flex;gap:10px;width:100%">
+      <button class="btn-accept" onclick="sendRematch()" style="flex:1">REMATCH ⚔️</button>
+      <button class="btn-decline" onclick="leaveBattle()" style="flex:1">LEAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ══════════════════════════════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// CARD DEFINITIONS
+// ════════════════════════════════════════════════════════════════════
+const CARDS = {
+  rock:                {icon:'🪨',name:'ROCK',         sub:'beats scissors', color:'#aaaaaa', effect:'rock'},
+  paper:               {icon:'📄',name:'PAPER',        sub:'beats rock',     color:'#44aaff', effect:'paper'},
+  scissors:            {icon:'✂️', name:'SCISSORS',     sub:'beats paper',    color:'#00ff66', effect:'metal'},
+  fire_rock:           {icon:'🪨', name:'FIRE ROCK',   sub:'elemental',      color:'#ff4400', effect:'fire'},
+  ice_rock:            {icon:'🪨', name:'ICE ROCK',    sub:'elemental',      color:'#66ddff', effect:'ice'},
+  lightning_rock:      {icon:'🪨', name:'⚡ ROCK',     sub:'elemental',      color:'#ffee00', effect:'lightning'},
+  fire_paper:          {icon:'📄', name:'FIRE PAPER',  sub:'elemental',      color:'#ff6600', effect:'fire'},
+  ice_paper:           {icon:'📄', name:'ICE PAPER',   sub:'elemental',      color:'#88eeff', effect:'ice'},
+  lightning_paper:     {icon:'📄', name:'⚡ PAPER',    sub:'elemental',      color:'#ffdd00', effect:'lightning'},
+  fire_scissors:       {icon:'✂️', name:'FIRE BLADE',  sub:'elemental',      color:'#ff3300', effect:'fire'},
+  ice_scissors:        {icon:'✂️', name:'FROST BLADE', sub:'elemental',      color:'#55ccff', effect:'ice'},
+  lightning_scissors:  {icon:'✂️', name:'⚡ BLADE',    sub:'elemental',      color:'#ffcc00', effect:'lightning'},
+  bomb:                {icon:'💣', name:'BOMB',         sub:'beats everything',color:'#ff2200',effect:'explosion'},
+  shield:              {icon:'🛡️', name:'SHIELD',       sub:'blocks damage',  color:'#4488ff', effect:'shield'},
+  heal:                {icon:'💚', name:'HEAL',          sub:'+20 HP',         color:'#44ff88', effect:'heal'},
+  poison:              {icon:'☠️', name:'POISON',        sub:'2 rounds DOT',   color:'#aa00ff', effect:'fire'},
+  mirror:              {icon:'🪞', name:'MIRROR',        sub:'reflects card',  color:'#aaddff', effect:'ice'},
+};
+
+const BASE_DECK = ['rock','paper','scissors'];
+
+// ════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════
+let ws = null;
+let myId = null, myName = '', myRole = '', mySeat = -1;
+let selectedRole = 'streamer';
+let challengeTarget = null, incomingChallenge = null;
+let opponentId = null;
+let pendingOffer = null;
+let challengeMode = 'wins';
+let battleId = null, battleConfig = null;
+let myHand = [], selectedCard = null, hasPlayed = false;
+let cardIdCtr = 0;
+let localStream = null, peerConn = null;
+let battleState = {};
+let isInitiator = false;
+
+// ════════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+function toast(msg, color='var(--teal)') {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.borderColor = color;
+  t.style.color = color;
+  t.textContent = msg;
+  $('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════════════════════════════
+function selRole(r) {
+  selectedRole = r;
+  $('role-streamer').classList.toggle('sel', r === 'streamer');
+  $('role-spectator').classList.toggle('sel', r === 'spectator');
+}
+
+function doLogin() {
+  const name = $('ln-name').value.trim();
+  const pin  = $('ln-pin').value.trim();
+  if (!name) { $('ln-err').textContent = 'Enter a username'; return; }
+  if (pin.length < 4) { $('ln-err').textContent = 'PIN must be 4 digits'; return; }
+  // Save to localStorage
+  localStorage.setItem('sb_name', name);
+  localStorage.setItem('sb_pin', pin);
+  myName = name; myRole = selectedRole;
+  $('ln-err').textContent = '';
+  connectWS();
+}
+
+// Pre-fill from localStorage
+window.addEventListener('load', () => {
+  const n = localStorage.getItem('sb_name');
+  const p = localStorage.getItem('sb_pin');
+  if (n) $('ln-name').value = n;
+  if (p) $('ln-pin').value = p;
+});
+
+// ════════════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ════════════════════════════════════════════════════════════════════
+function connectWS() {
+  const url = 'wss://' + location.hostname + ':' + location.port;
+  try { ws = new WebSocket(url); } catch(e) { $('ln-err').textContent = 'Cannot connect to server'; return; }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'login', name: myName, role: myRole }));
+  };
+  ws.onmessage = e => { let m; try{m=JSON.parse(e.data);}catch{return;} handle(m); };
+  ws.onclose = () => toast('Disconnected from server', 'var(--red)');
+  ws.onerror = () => { $('ln-err').textContent = 'Server connection failed. Is server.js running?'; };
+}
+
+function wsSend(data) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MESSAGE HANDLER
+// ════════════════════════════════════════════════════════════════════
+function handle(m) {
+  switch(m.type) {
+
+    case 'login_ok':
+      myId = m.id;
+      $('lb-name').textContent = myName.toUpperCase();
+      $('lb-role').textContent = myRole === 'streamer' ? '📡 STREAMER' : '👁 SPECTATOR';
+      if (myRole === 'streamer') {
+        $('my-stream-section').style.display = 'block';
+        $('spectator-note').style.display = 'none';
+        startCamera();
+      } else {
+        $('spectator-note').style.display = 'block';
+      }
+      showScreen('screen-lobby');
+      break;
+
+    case 'streamer_list':
+      renderStreamerList(m.streamers);
+      break;
+
+    case 'challenge_sent':
+      toast('Challenge sent to ' + m.targetName + '!', 'var(--gold)');
+      break;
+
+    case 'challenge_failed':
+      toast(m.reason, 'var(--red)');
+      break;
+
+    case 'challenge_received':
+      incomingChallenge = m;
+      $('ic-name').textContent = m.fromName.toUpperCase();
+      const cfgTxt = m.config.mode === 'wins'
+        ? 'First to ' + m.config.value + ' wins'
+        : m.config.value + ' HP each';
+      $('ic-config').textContent = cfgTxt;
+      $('modal-incoming').classList.add('show');
+      toast('⚔️ ' + m.fromName + ' challenged you!', 'var(--gold)');
+      break;
+
+    case 'challenge_declined':
+      toast(m.targetName + ' declined your challenge', 'var(--red)');
+      break;
+
+    case 'battle_start':
+      $('modal-incoming').classList.remove('show');
+      $('modal-challenge').classList.remove('show');
+      mySeat = m.seat;
+      battleId = m.battleId;
+      opponentId = m.opponentId;
+      battleConfig = m.config || { mode: 'wins', value: 5 };
+      battleConfig = m.config;
+      isInitiator = m.isInitiator;
+      startBattle(m);
+      break;
+
+    case 'battle_state':
+      applyBattleState(m);
+      break;
+    case 'battle_setup_done':
+      battleState = { ...battleState, phase: 'picking', hp: m.hp, scores: m.scores, round: m.round };
+      renderHand();
+      updatePlayBtn();
+      setBattleStatus('Select a card and play!');
+      break;
+
+    case 'new_round':
+      clearStageCards();
+      if (m.hand) myHand = m.hand.map(c => ({ id: cardIdCtr++, card: c }));
+      battleState.phase = 'picking';
+      hasPlayed = false;
+      selectedCard = null;
+      renderHand();
+      updatePlayBtn();
+      setBattleStatus('Select a card and play!');
+      if (m.round) $('stat-round-label').textContent = 'ROUND ' + m.round;
+      if (m.scores) { const sc=m.scores; $('stat-score').textContent=(sc[mySeat]||0)+' — '+(sc[1-mySeat]||0); }
+      break;
+
+    case 'player_locked':
+      if (m.seat !== mySeat) {
+        setBattleStatus('Opponent locked in... waiting for you');
+      }
+      break;
+
+    case 'round_result':
+      handleRoundResult(m);
+      break;
+
+    case 'match_over':
+      handleMatchOver(m);
+      break;
+
+    case 'gift_card':
+      receiveGiftCard(m);
+      break;
+
+    case 'gift_announce':
+      toast((m.gift?.icon||'🎁') + ' ' + m.viewerName + ' gifted ' + (m.gift?.label||m.giftId) + ' to ' + m.targetName, m.gift?.color||'var(--teal)');
+      addBattleLog((m.gift?.icon||'🎁') + ' ' + m.viewerName + ' → ' + m.targetName + ': ' + (m.gift?.label||m.giftId), m.gift?.color||'#0ff');
+      break;
+
+    case 'card_burned':
+      toast('🔥 Your card was BURNED! Forced: ' + m.forced, '#f80');
+      break;
+
+    case 'rematch_requested':
+      $('mo-rematch-status').textContent = (m.fromName || 'Opponent').toUpperCase() + ' wants a rematch!';
+      break;
+
+    case 'rematch_start':
+      $('modal-matchover').classList.remove('show');
+      battleState = { phase: 'picking', hp: [100,100], scores: [0,0], round: 1 };
+      hasPlayed = false; selectedCard = null;
+      if (m.hand) myHand = m.hand.map(c => ({ id: cardIdCtr++, card: c }));
+      else dealHand();
+      renderHand();
+      updatePlayBtn();
+      $('stat-score').textContent = '0 — 0';
+      $('stat-round-label').textContent = 'ROUND 1';
+      setBattleStatus('Select a card and play!');
+      toast('⚔️ REMATCH!', 'var(--gold)');
+      showStageMsg('REMATCH!', 'var(--gold)', 2000);
+      // Re-initiate WebRTC
+      if (peerConn) { peerConn.close(); peerConn = null; }
+      setTimeout(() => setupWebRTC(mySeat === 0), 500);
+      break;
+
+    case 'opponent_left':
+      toast('Opponent disconnected', 'var(--red)');
+      setTimeout(leaveBattle, 2000);
+      break;
+
+    // WebRTC signaling
+    case 'webrtc_offer':
+      if (peerConn) {
+        handleOffer(m);
+      } else {
+        // queue it until peerConn is ready
+        pendingOffer = m;
+      }
+      break;
+    case 'webrtc_answer':
+      handleAnswer(m);
+      break;
+    case 'webrtc_ice':
+      handleIce(m);
+      break;
+    case 'spectator_joined':
+      if (peerConn && isInitiator) setTimeout(createAndSendOffer, 500);
+      break;
+
+    case 'watch_ready':
+      watchNames = m.names || ['Player 1', 'Player 2'];
+      showScreen('screen-watch');
+      $('watch-name-0').textContent = watchNames[0].toUpperCase();
+      $('watch-name-1').textContent = watchNames[1].toUpperCase();
+      $('watch-stat-name0').textContent = watchNames[0].toUpperCase();
+      $('watch-stat-name1').textContent = watchNames[1].toUpperCase();
+      $('watch-score').textContent = '0 — 0';
+      $('watch-round-label').textContent = 'ROUND 1';
+      $('watch-status').textContent = 'Watching...';
+      setTimeout(startWatchAnimation, 100);
+      break;
+
+    case 'watch_card_played':
+      // A player played a card — show it on the watch stage
+      { const wInfo = {...(CARDS[m.card] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:m.card};
+        showWatchCard(m.seat, wInfo); }
+      break;
+
+    case 'watch_round_result':
+      // Full round result for spectators
+      { const wc0 = {...(CARDS[m.choices?.[0]] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:m.choices?.[0]};
+        const wc1 = {...(CARDS[m.choices?.[1]] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:m.choices?.[1]};
+        showWatchCard(0, wc0); showWatchCard(1, wc1);
+        setTimeout(()=>animateWatchClash(m, wc0, wc1), 600);
+        if (m.scores) $('watch-score').textContent=(m.scores[0]||0)+' — '+(m.scores[1]||0);
+        const wlog=$('watch-battle-log');
+        if(wlog&&m.reason){ const el=document.createElement('div'); el.textContent=m.reason; el.style.color=m.winner===-1?'#aaa':'var(--gold)'; wlog.appendChild(el); while(wlog.children.length>4) wlog.firstChild.remove(); }
+        setTimeout(clearWatchCards, 1800);
+        if (m.matchWinner >= 0) {
+          setTimeout(()=>{ $('watch-status').textContent = watchNames[m.matchWinner].toUpperCase()+' WINS THE MATCH! 🏆'; }, 2500);
+        } else {
+          setTimeout(()=>{ if(m.round) $('watch-round-label').textContent='ROUND '+(m.round+1); $('watch-status').textContent='Next round...'; }, 4500);
+        }
+      }
+      break;
+
+    case 'spectator_watch_request':
+      if (localStream) {
+        const specPc = new RTCPeerConnection(ICE_SERVERS);
+        localStream.getTracks().forEach(t => specPc.addTrack(t, localStream));
+        specPc.onicecandidate = e => {
+          if (e.candidate) wsSend({ type: 'spectator_ice', candidate: e.candidate, targetId: m.spectatorId, seat: m.seat });
+        };
+        specPc.createOffer()
+          .then(offer => { specPc.setLocalDescription(offer); wsSend({ type: 'spectator_offer', sdp: offer, spectatorId: m.spectatorId, seat: m.seat }); })
+          .catch(e => console.error('Spectator offer error:', e));
+        window._specPcs = window._specPcs || {};
+        window._specPcs[m.spectatorId + '_' + m.seat] = specPc;
+      }
+      break;
+
+    case 'watch_offer':
+      setupWatchWebRTC(m.seat, m.sdp, m.fromId);
+      break;
+
+    case 'spectator_answer_received':
+      { const spc = window._specPcs?.[m.spectatorId + '_' + m.seat];
+        if (spc && spc.signalingState === 'have-local-offer') spc.setRemoteDescription(new RTCSessionDescription(m.sdp)).catch(()=>{}); }
+      break;
+
+    case 'spectator_ice_received':
+      { const spc2 = window._specPcs?.[m.fromId + '_' + m.seat];
+        if (spc2) spc2.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(()=>{}); }
+      break;
+
+    case 'watch_ice':
+      if (watchPeerConns[m.seat]) watchPeerConns[m.seat].addIceCandidate(new RTCIceCandidate(m.candidate)).catch(()=>{});
+      break;
+
+    case 'watch_score':
+      if ($('watch-score')) { const sc=m.scores; $('watch-score').textContent=(sc?.[0]||0)+' — '+(sc?.[1]||0); }
+      break;
+
+    // watch_log handled by watch_round_result
+
+
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LOBBY
+// ════════════════════════════════════════════════════════════════════
+function renderStreamerList(streamers) {
+  const list = $('streamer-list');
+  const others = streamers.filter(s => s.id !== myId);
+  if (others.length === 0) {
+    list.innerHTML = '<div class="empty-state">No other streamers online...</div>';
+    return;
+  }
+  list.innerHTML = '';
+  others.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'streamer-card';
+    const initials = s.name.slice(0,2).toUpperCase();
+    const statusClass = s.status === 'idle' ? 'status-idle' : s.status === 'battling' ? 'status-battling' : 'status-challenging';
+    const statusText = s.status === 'idle' ? '● READY TO BATTLE' : s.status === 'battling' ? '⚔️ IN BATTLE' : '⏳ CHALLENGING';
+    // Spectators can click battling streamers to watch
+    if (myRole === 'spectator' && s.status === 'battling') {
+      card.style.cursor = 'pointer';
+      card.onclick = () => watchStreamer(s.id, s.name);
+    }
+    card.innerHTML = `
+      <div class="streamer-avatar">${initials}</div>
+      <div class="streamer-info">
+        <div class="streamer-name">${s.name}</div>
+        <div class="streamer-status ${statusClass}">${statusText}</div>
+      </div>
+      ${myRole === 'streamer' && s.status === 'idle' ? `<button class="challenge-btn" onclick="openChallenge(${s.id},'${s.name}')">CHALLENGE ⚔️</button>` : ''}
+      ${myRole === 'spectator' && s.status === 'battling' ? `<button class="challenge-btn" style="background:#6600ff22;border-color:#6600ff;color:#b06fff" onclick="watchStreamer(${s.id},'${s.name}')">👁 CLICK TO VIEW</button>` : ''}
+      ${myRole === 'spectator' && s.status === 'idle' ? `<span style="font-size:9px;color:#ffffff25;letter-spacing:1px">WAITING</span>` : ''}
+    `;
+    list.appendChild(card);
+  });
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// SPECTATOR WATCH
+// ════════════════════════════════════════════════════════════════════
+let watchPeerConns = [null, null];
+
+let watchingInProgress = false;
+function watchStreamer(streamerId, streamerName) {
+  if (watchingInProgress) return;
+  watchingInProgress = true;
+  wsSend({ type: 'spectator_watch', targetId: streamerId });
+  toast('Joining ' + streamerName + "'s stream...", 'var(--purple)');
+}
+
+function leaveWatch() {
+  watchingInProgress = false;
+  watchPeerConns.forEach(pc => { if (pc) { try{pc.close();}catch(e){} } });
+  watchPeerConns = [null, null];
+  $('watch-video-0').srcObject = null;
+  $('watch-video-1').srcObject = null;
+  showScreen('screen-lobby');
+}
+
+function setupWatchWebRTC(seat, offerSdp, fromId) {
+  if (watchPeerConns[seat] && watchPeerConns[seat].signalingState !== 'closed') {
+    watchPeerConns[seat].close();
+  }
+  const pc = new RTCPeerConnection(ICE_SERVERS);
+  watchPeerConns[seat] = pc;
+  pc.ontrack = e => {
+    const vid = $('watch-video-' + seat);
+    if (vid && vid.srcObject !== e.streams[0]) vid.srcObject = e.streams[0];
+  };
+  pc.onicecandidate = e => {
+    if (e.candidate) wsSend({ type: 'spectator_ice', candidate: e.candidate, targetId: fromId, seat });
+  };
+  pc.setRemoteDescription(new RTCSessionDescription(offerSdp))
+    .then(() => pc.createAnswer())
+    .then(answer => { pc.setLocalDescription(answer); wsSend({ type: 'spectator_answer', sdp: answer, targetId: fromId, seat }); })
+    .catch(e => console.error('Watch WebRTC error:', e));
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CAMERA
+// ════════════════════════════════════════════════════════════════════
+let camOn = false, micOn = false;
+async function startCamera() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    $('my-video').srcObject = localStream;
+    camOn = true; micOn = true;
+    $('btn-cam').textContent = '📷 CAMERA ON';
+    $('btn-cam').classList.add('active');
+    $('btn-mic').textContent = '🎙 MIC ON';
+    $('btn-mic').classList.add('active');
+  } catch(e) {
+    toast('Camera access denied', 'var(--red)');
+  }
+}
+function toggleCam() {
+  if (!localStream) return;
+  camOn = !camOn;
+  localStream.getVideoTracks().forEach(t => t.enabled = camOn);
+  $('btn-cam').textContent = camOn ? '📷 CAMERA ON' : '📷 CAMERA OFF';
+  $('btn-cam').classList.toggle('active', camOn);
+}
+function toggleMic() {
+  if (!localStream) return;
+  micOn = !micOn;
+  localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+  $('btn-mic').textContent = micOn ? '🎙 MIC ON' : '🎙 MIC OFF';
+  $('btn-mic').classList.toggle('active', micOn);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CHALLENGE
+// ════════════════════════════════════════════════════════════════════
+function openChallenge(targetId, targetName) {
+  challengeTarget = { id: targetId, name: targetName };
+  $('ch-target-name').textContent = 'Challenging ' + targetName.toUpperCase();
+  $('modal-challenge').classList.add('show');
+}
+function closeChallenge() { $('modal-challenge').classList.remove('show'); }
+function selMode(mode) {
+  challengeMode = mode;
+  $('mode-wins').classList.toggle('sel', mode === 'wins');
+  $('mode-hp').classList.toggle('sel', mode === 'hp');
+  $('mode-wins-cfg').style.display = mode === 'wins' ? 'block' : 'none';
+  $('mode-hp-cfg').style.display = mode === 'hp' ? 'block' : 'none';
+}
+function sendChallenge() {
+  if (!challengeTarget) return;
+  const value = challengeMode === 'wins'
+    ? parseInt($('cfg-wins').value) || 5
+    : parseInt($('cfg-hp').value) || 100;
+  wsSend({ type: 'challenge', targetId: challengeTarget.id, config: { mode: challengeMode, value } });
+  closeChallenge();
+}
+function respondChallenge(accepted) {
+  if (!incomingChallenge) return;
+  wsSend({ type: 'challenge_response', fromId: incomingChallenge.fromId, accepted });
+  $('modal-incoming').classList.remove('show');
+  incomingChallenge = null;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BATTLE START
+// ════════════════════════════════════════════════════════════════════
+function startBattle(m) {
+  showScreen('screen-battle');
+  hasPlayed = false; selectedCard = null;
+  // Set initial battle state so cards are enabled
+  battleState = { phase: 'picking', hp: [100, 100], scores: [0, 0], round: 1 };
+  // Auto-send battle setup (seat 0 is authoritative)
+  if (m.seat === 0) {
+    const fmt = m.config || { mode: 'wins', value: 5 };
+    wsSend({ type: 'battle_setup', format: { type: fmt.mode === 'hp' ? 'hp' : 'wins', value: fmt.value } });
+  }
+  dealHand();
+  setupWebRTC(m.isInitiator);
+  if (pendingOffer) {
+    setTimeout(() => { handleOffer(pendingOffer); pendingOffer = null; }, 200);
+  }
+
+  // Show own video in correct slot
+  if (localStream) {
+    $('video-p0').srcObject = localStream;
+    $('video-p0').muted = true;
+  }
+
+  $('vlabel0').textContent = myName.toUpperCase();
+  $('vlabel1').textContent = m.opponentName.toUpperCase();
+  $('stat-name0').textContent = myName.toUpperCase();
+  $('stat-name1').textContent = m.opponentName.toUpperCase();
+
+  updateBattleUI(m.config);
+  toast('⚔️ BATTLE START!', 'var(--gold)');
+  showStageMsg('BATTLE START!', 'var(--gold)', 2000);
+  startStageAnimation();
+}
+
+function applyBattleState(s) {
+  battleState = s;
+  if (!s) return;
+  const cfg = s.config || battleConfig;
+
+  // Update names
+  const myN = s.names?.[mySeat] || 'Me';
+  const oppN = s.names?.[1-mySeat] || 'Opponent';
+  $('stat-name0').textContent = myN.toUpperCase();
+  $('stat-name1').textContent = oppN.toUpperCase();
+  $('vlabel0').textContent = myN.toUpperCase();
+  $('vlabel1').textContent = oppN.toUpperCase();
+
+  // HP bars
+  if (cfg && cfg.mode === 'hp') {
+    [0,1].forEach(i => {
+      $('hp-wrap'+i).style.display = 'block';
+      const pct = Math.max(0, (s.hp?.[i] || 0) / cfg.value * 100);
+      $('hp-bar'+i).style.width = pct + '%';
+      $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
+      $('hp-text'+i).textContent = (s.hp?.[i] || 0) + ' HP';
+    });
+  }
+
+  // Score
+  const sc2 = s.scores || s.wins;
+  $('stat-score').textContent = (sc2?.[mySeat] || 0) + ' — ' + (sc2?.[1-mySeat] || 0);
+  $('stat-round-label').textContent = 'ROUND ' + (s.round || 1);
+
+  // Phase
+  if (s.phase === 'picking' && !hasPlayed) {
+    setBattleStatus('Select a card and play!');
+    updatePlayBtn();
+  } else if (s.phase === 'picking' && hasPlayed) {
+    setBattleStatus('Waiting for opponent...');
+  }
+
+  // Log
+  if (s.log) s.log.slice(-3).forEach(l => addBattleLog(l.msg, l.color));
+}
+
+function updateBattleUI(cfg) {
+  if (cfg && cfg.mode === 'hp') {
+    $('hp-wrap0').style.display = 'block';
+    $('hp-wrap1').style.display = 'block';
+    $('hp-bar0').style.width = '100%';
+    $('hp-bar1').style.width = '100%';
+    $('hp-text0').textContent = cfg.value + ' HP';
+    $('hp-text1').textContent = cfg.value + ' HP';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// HAND
+// ════════════════════════════════════════════════════════════════════
+function dealHand() {
+  myHand = [];
+  const pick = (arr, n) => {
+    const r = [];
+    for (let i=0;i<n;i++) r.push(arr[Math.floor(Math.random()*arr.length)]);
+    return r;
+  };
+  pick(BASE_DECK, 5).forEach(c => myHand.push({ id: cardIdCtr++, card: c }));
+  renderHand();
+}
+
+function renderHand() {
+  const row = $('hand-row');
+  // Stop old hand effects
+  handEffects.forEach(e => { if(e.effect) e.effect.running=false; });
+  handEffects.clear();
+  row.innerHTML = '';
+  const disabled = hasPlayed || battleState.phase !== 'picking';
+  myHand.forEach(item => {
+    const info = CARDS[item.card] || { icon:'?', name:item.card, color:'#fff', sub:'' };
+    const isElemental = item.card && item.card.includes('_');
+    const el = document.createElement('div');
+    el.className = 'card' + (disabled?' disabled':'') + (selectedCard===item.id?' selected':'');
+    el.style.borderColor = info.color;
+    el.style.color = info.color;
+    el.style.position = 'relative';
+    el.style.overflow = 'visible';
+    if (isElemental) el.style.boxShadow = `0 0 14px ${info.color}90, inset 0 0 10px ${info.color}25`;
+    else el.style.boxShadow = '';
+
+    // Elemental canvas overlay on the card
+    if (isElemental) {
+      const cvs = document.createElement('canvas');
+      cvs.width = 80; cvs.height = 110;
+      cvs.style.cssText = 'position:absolute;inset:-5px;width:calc(100%+10px);height:calc(100%+10px);pointer-events:none;z-index:10;';
+      el.appendChild(cvs);
+      const effect = new ElementEffect(cvs, getCardEffect(item.card), info.color);
+      handEffects.set(item.id, { canvas: cvs, effect });
+    }
+
+    const inner = document.createElement('div');
+    inner.style.position = 'relative';
+    inner.style.zIndex = '5';
+    inner.innerHTML = `
+      <div class="card-icon">${info.icon}</div>
+      <div class="card-name">${info.name}</div>
+      <div class="card-sub">${info.sub}</div>
+      ${isElemental ? `<div class="card-badge" style="background:${info.color}33;border:1px solid ${info.color};color:${info.color};font-size:7px;padding:2px 4px;border-radius:2px;letter-spacing:1px">✨ ELEMENTAL</div>` : ''}
+      ${item.fromGift ? '<div class="card-badge">GIFT</div>' : ''}
+    `;
+    el.appendChild(inner);
+
+    if (!disabled) el.addEventListener('click', () => {
+      selectedCard = item.id;
+      renderHand();
+      updatePlayBtn();
+    });
+    row.appendChild(el);
+  });
+}
+
+function updatePlayBtn() {
+  const btn = $('play-btn');
+  if (hasPlayed) {
+    btn.disabled = true; btn.textContent = 'WAITING...'; btn.className = 'locked';
+  } else if (selectedCard !== null && battleState.phase === 'picking') {
+    btn.disabled = false; btn.textContent = 'PLAY CARD ▶'; btn.className = '';
+  } else {
+    btn.disabled = true; btn.textContent = battleState.phase === 'picking' ? 'SELECT A CARD' : 'WAITING...'; btn.className = '';
+  }
+}
+
+function playCard() {
+  if (selectedCard === null || hasPlayed || battleState.phase !== 'picking') return;
+  const item = myHand.find(h => h.id === selectedCard);
+  if (!item) return;
+  myHand = myHand.filter(h => h.id !== selectedCard);
+  hasPlayed = true;
+  wsSend({ type: 'play_card', card: item.card });
+  selectedCard = null;
+  renderHand();
+  updatePlayBtn();
+  setBattleStatus('Card played! Waiting for opponent...');
+
+  // Show card on stage
+  const info = CARDS[item.card] || { icon:'?', name:item.card, color:'#fff', effect:'paper' };
+  showCardOnStage(0, {...info, card:item.card}); // always show my card on left
+}
+
+function receiveGiftCard(m) {
+  myHand.push({ id: cardIdCtr++, card: m.card || m.giftId, fromGift: true });
+  toast((m.gift?.icon||'🎁') + ' Gift received: ' + (m.gift?.label||m.giftId), m.gift?.color||'var(--teal)');
+  renderHand();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ROUND RESULT + ANIME ANIMATION
+// ════════════════════════════════════════════════════════════════════
+function handleRoundResult(m) {
+  const c0 = {...(CARDS[m.choices?.[0]] || { icon:'?', name:'?', color:'#fff', effect:'paper' }), card:m.choices?.[0]};
+  const c1 = {...(CARDS[m.choices?.[1]] || { icon:'?', name:'?', color:'#fff', effect:'paper' }), card:m.choices?.[1]};
+
+  // Show both cards on stage — map server seat to visual position
+  const myServerCard = m.choices?.[mySeat];
+  const oppServerCard = m.choices?.[1-mySeat];
+  const myInfo = {...(CARDS[myServerCard] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:myServerCard};
+  const oppInfo = {...(CARDS[oppServerCard] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:oppServerCard};
+  showCardOnStage(0, myInfo);   // me always left
+  showCardOnStage(1, oppInfo);  // opponent always right
+
+  // Animate clash after short delay
+  setTimeout(() => {
+    animateClash(m, c0, c1);
+  }, 600);
+
+  // HP damage numbers
+  if (m.dmg) {
+    if (m.dmg[0] > 0) showDamage(0, m.dmg[0]);
+    if (m.dmg[1] > 0) showDamage(1, m.dmg[1]);
+  }
+
+  // Update stats
+  if (m.hp) {
+    const cfg = battleState.config || battleConfig;
+    if (cfg && cfg.mode === 'hp') {
+      [0,1].forEach(i => {
+        const seat = i === 0 ? mySeat : 1-mySeat;
+        const pct = Math.max(0, (m.hp[seat] || 0) / cfg.value * 100);
+        $('hp-bar'+i).style.width = pct + '%';
+        $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
+        $('hp-text'+i).textContent = m.hp[seat] + ' HP';
+      });
+    }
+  }
+  const sc = m.scores || m.wins;
+  if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
+
+  addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
+
+  // Check for match over
+  if (m.matchWinner >= 0) {
+    battleState.phase = 'gameover';
+    setTimeout(() => {
+      clearStageCards();
+      handleMatchOver(m);
+    }, 2500);
+    return;
+  }
+
+  // Clear stage quickly after clash, hand reset comes from server new_round message
+  setTimeout(clearStageCards, 1800);
+}
+
+function handleMatchOver(m) {
+  const isWinner = m.matchWinner === mySeat;
+  $('mo-title').textContent = isWinner ? '🏆 VICTORY!' : '💀 DEFEAT';
+  $('mo-title').style.color = isWinner ? 'var(--gold)' : 'var(--red)';
+  const winnerName = m.matchWinnerName || (m.matchWinner >= 0 ? 'Player' : 'Nobody');
+  $('mo-winner').textContent = winnerName.toUpperCase() + ' WINS THE MATCH!';
+  const sc = m.scores || m.wins;
+  if (sc) $('mo-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
+  $('modal-matchover').classList.add('show');
+}
+
+function sendRematch() {
+  $('mo-rematch-status').textContent = 'Waiting for opponent...';
+  wsSend({ type: 'rematch' });
+}
+
+function confirmLeave() {
+  if (battleState.phase !== 'gameover') {
+    if (!confirm('Leave the battle? Your opponent will win.')) return;
+  }
+  leaveBattle();
+}
+
+function leaveBattle() {
+  $('modal-matchover').classList.remove('show');
+  wsSend({ type: 'leave_battle' });
+  if (peerConn) { peerConn.close(); peerConn = null; }
+  showScreen('screen-lobby');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// STAGE ANIMATION (anime-style clash)
+// ════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// ELEMENTAL FIGHTER ANIMATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// ELEMENTAL FIGHTER ANIMATION SYSTEM (from preview)
+// ═══════════════════════════════════════════════════════════════════
+const stageCards = [null, null];
+let animFrame = null, bgParticles = [];
+let clashActive = false, clashTimer = 0, clashParticles2 = [];
+// Per-seat ElementEffect instances for stage
+// Per-card ElementEffect instances for hand (map from card id to {canvas, effect})
+const handEffects = new Map();
+
+class ElementEffect {
+  constructor(canvas, type, color) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.type = type;
+    this.color = color;
+    this.particles = [];
+    this.frame = 0;
+    this.running = true;
+    this.init();
+    this.loop();
+  }
+
+  init() {
+    // Seed initial particles based on type
+    const count = { fire:18, ice:14, lightning:10, rock:16, metal:12, paper:8, explosion:20, shield:12, heal:12 }[this.type] || 10;
+    for (let i = 0; i < count; i++) this.spawnParticle(i * (60/count));
+  }
+
+  spawnParticle(life = 0) {
+    const cx = this.canvas.width/2, cy = this.canvas.height/2;
+    const r = 28 + Math.random()*10;
+    const angle = Math.random() * Math.PI * 2;
+
+    switch(this.type) {
+      case 'fire': this.particles.push({
+        x: cx + (Math.random()-0.5)*40,
+        y: cy + 20 + Math.random()*15,
+        vx: (Math.random()-0.5)*1.2,
+        vy: -1.5 - Math.random()*2,
+        size: 3 + Math.random()*6,
+        life: life, maxLife: 40+Math.random()*30,
+        type:'fire'
+      }); break;
+
+      case 'ice': this.particles.push({
+        x: cx + Math.cos(angle)*r,
+        y: cy + Math.sin(angle)*r*0.7,
+        angle: angle,
+        radius: r,
+        speed: 0.008 + Math.random()*0.006,
+        size: 1.5 + Math.random()*3,
+        life: life, maxLife: 80,
+        twinkle: Math.random()*Math.PI*2,
+        type:'ice'
+      }); break;
+
+      case 'lightning': this.particles.push({
+        x: cx, y: cy - 30,
+        life: life, maxLife: 15 + Math.random()*10,
+        type:'lightning',
+        bolts: this.genBolts(cx, cy)
+      }); break;
+
+      case 'rock': this.particles.push({
+        x: cx + (Math.random()-0.5)*50,
+        y: cy + 15 + Math.random()*20,
+        vx: (Math.random()-0.5)*0.8,
+        vy: -0.3 - Math.random()*0.5,
+        rot: Math.random()*Math.PI*2,
+        rotSpeed: (Math.random()-0.5)*0.15,
+        size: 3 + Math.random()*5,
+        life: life, maxLife: 60+Math.random()*40,
+        type:'rock'
+      }); break;
+
+      case 'metal': this.particles.push({
+        x: cx + Math.cos(angle)*r,
+        y: cy + Math.sin(angle)*r*0.6,
+        angle: angle,
+        radius: r,
+        speed: 0.02,
+        size: 2,
+        life: life, maxLife: 40,
+        type:'metal'
+      }); break;
+
+      case 'paper': this.particles.push({
+        x: cx + (Math.random()-0.5)*40,
+        y: cy + (Math.random()-0.5)*40,
+        vx: (Math.random()-0.5)*0.5,
+        vy: -0.5 - Math.random()*0.5,
+        rot: Math.random()*Math.PI*2,
+        size: 4 + Math.random()*4,
+        life: life, maxLife: 60,
+        type:'paper'
+      }); break;
+
+      case 'explosion': this.particles.push({
+        x: cx, y: cy,
+        vx: (Math.random()-0.5)*6,
+        vy: (Math.random()-0.5)*6,
+        size: 2 + Math.random()*5,
+        life: life, maxLife: 30+Math.random()*20,
+        type:'explosion'
+      }); break;
+
+      case 'shield': this.particles.push({
+        angle: angle, radius: 36,
+        speed: 0.015,
+        life: life, maxLife: 80,
+        type:'shield'
+      }); break;
+
+      case 'heal': this.particles.push({
+        x: cx + (Math.random()-0.5)*40,
+        y: cy + 20 + Math.random()*20,
+        vx: (Math.random()-0.5)*0.4,
+        vy: -0.8 - Math.random()*0.5,
+        size: 3 + Math.random()*4,
+        life: life, maxLife: 50+Math.random()*30,
+        type:'heal'
+      }); break;
+    }
+  }
+
+  genBolts(cx, cy) {
+    const bolts = [];
+    const count = 2 + Math.floor(Math.random()*2);
+    for (let i = 0; i < count; i++) {
+      const pts = [{x:cx+(Math.random()-0.5)*30, y:cy-35}];
+      let py = cy-35;
+      while (py < cy+30) {
+        py += 8 + Math.random()*10;
+        pts.push({x:cx+(Math.random()-0.5)*40, y:py});
+      }
+      bolts.push(pts);
+    }
+    return bolts;
+  }
+
+  update() {
+    const cx = this.canvas.width/2, cy = this.canvas.height/2;
+    this.frame++;
+
+    for (let i = this.particles.length-1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.life++;
+
+      if (p.life >= p.maxLife) {
+        this.particles.splice(i, 1);
+        this.spawnParticle(0);
+        continue;
+      }
+
+      if (p.type === 'fire') {
+        p.x += p.vx + Math.sin(p.life*0.3)*0.5;
+        p.y += p.vy;
+        p.vy *= 0.98;
+        p.size *= 0.97;
+      } else if (p.type === 'ice') {
+        p.angle += p.speed;
+        p.x = cx + Math.cos(p.angle)*p.radius;
+        p.y = cy + Math.sin(p.angle)*p.radius*0.7;
+        p.twinkle += 0.15;
+      } else if (p.type === 'rock') {
+        p.x += p.vx; p.y += p.vy;
+        p.rot += p.rotSpeed;
+        p.vy += 0.02;
+      } else if (p.type === 'metal') {
+        p.angle += p.speed;
+        p.x = cx + Math.cos(p.angle)*p.radius;
+        p.y = cy + Math.sin(p.angle)*p.radius*0.6;
+      } else if (p.type === 'paper') {
+        p.x += p.vx + Math.sin(p.life*0.2)*0.4;
+        p.y += p.vy;
+        p.rot += 0.05;
+      } else if (p.type === 'shield') {
+        p.angle += p.speed;
+      } else if (p.type === 'heal') {
+        p.x += p.vx + Math.sin(p.life*0.25)*0.3;
+        p.y += p.vy;
+      }
+    }
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    const cx = this.canvas.width/2, cy = this.canvas.height/2;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    for (const p of this.particles) {
+      const t = p.life / p.maxLife;
+      const alpha = t < 0.2 ? t/0.2 : 1 - (t-0.2)/0.8;
+
+      if (p.type === 'fire') {
+        const g = ctx.createRadialGradient(p.x,p.y,0, p.x,p.y,p.size);
+        const colors = t < 0.3 ? ['#fff','#ffee00','#ff8800'] : ['#ffaa00','#ff4400','transparent'];
+        g.addColorStop(0, colors[0]);
+        g.addColorStop(0.4, colors[1]);
+        g.addColorStop(1, colors[2]);
+        ctx.globalAlpha = Math.max(0, alpha * 0.85);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+
+      } else if (p.type === 'ice') {
+        const twinkleAlpha = (Math.sin(p.twinkle)+1)*0.5;
+        ctx.globalAlpha = Math.max(0, alpha * twinkleAlpha);
+        // Sparkle star
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = '#aaeeff';
+        const s = p.size;
+        ctx.beginPath();
+        ctx.moveTo(0,-s*2); ctx.lineTo(s*0.3,-s*0.3);
+        ctx.lineTo(s*2,0); ctx.lineTo(s*0.3,s*0.3);
+        ctx.lineTo(0,s*2); ctx.lineTo(-s*0.3,s*0.3);
+        ctx.lineTo(-s*2,0); ctx.lineTo(-s*0.3,-s*0.3);
+        ctx.closePath(); ctx.fill();
+        // Gleam line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.5;
+        ctx.globalAlpha = Math.max(0, alpha * twinkleAlpha * 0.6);
+        ctx.beginPath(); ctx.moveTo(-s*2.5,0); ctx.lineTo(s*2.5,0); ctx.stroke();
+        ctx.restore();
+
+      } else if (p.type === 'lightning') {
+        ctx.globalAlpha = Math.max(0, (1-t) * 0.9);
+        for (const bolt of p.bolts) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = '#ffee00';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.moveTo(bolt[0].x, bolt[0].y);
+          for (let j = 1; j < bolt.length; j++) ctx.lineTo(bolt[j].x, bolt[j].y);
+          ctx.stroke();
+          ctx.strokeStyle = '#ffee00';
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+      } else if (p.type === 'rock') {
+        ctx.globalAlpha = Math.max(0, alpha * 0.7);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = '#999999';
+        ctx.strokeStyle = '#555555';
+        ctx.lineWidth = 0.5;
+        const s = p.size;
+        ctx.beginPath();
+        ctx.moveTo(-s,-s*0.5); ctx.lineTo(0,-s); ctx.lineTo(s,-s*0.3);
+        ctx.lineTo(s*0.8,s*0.5); ctx.lineTo(-s*0.3,s);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.restore();
+
+      } else if (p.type === 'metal') {
+        ctx.globalAlpha = Math.max(0, alpha * 0.8);
+        const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*3);
+        g.addColorStop(0,'#ffffff'); g.addColorStop(0.3,'#cccccc'); g.addColorStop(1,'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size*3, 0, Math.PI*2); ctx.fill();
+
+      } else if (p.type === 'paper') {
+        ctx.globalAlpha = Math.max(0, alpha * 0.5);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = '#e8e0c0';
+        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*1.3);
+        ctx.restore();
+
+      } else if (p.type === 'shield') {
+        ctx.globalAlpha = 0.15 + Math.sin(this.frame*0.05)*0.05;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(p.angle);
+        ctx.strokeStyle = '#4488ff';
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = '#4488ff';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(0, 0, 36, 0, Math.PI*2);
+        ctx.stroke();
+        // Rotating arc segment
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, 36, p.angle, p.angle + 0.8);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+
+      } else if (p.type === 'heal') {
+        ctx.globalAlpha = Math.max(0, alpha * 0.8);
+        const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*2);
+        g.addColorStop(0,'#88ff88'); g.addColorStop(0.5,'#44ff44'); g.addColorStop(1,'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size*2, 0, Math.PI*2); ctx.fill();
+        // Cross symbol on bigger particles
+        if (p.size > 5) {
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = Math.max(0, alpha * 0.6);
+          ctx.fillRect(p.x-1, p.y-4, 2, 8);
+          ctx.fillRect(p.x-4, p.y-1, 8, 2);
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  loop() {
+    if (!this.running) return;
+    this.update();
+    this.draw();
+    requestAnimationFrame(() => this.loop());
+  }
+
+  stop() { this.running = false; }
+}
+
+function getCardEffect(cardKey) {
+  const map = {
+    rock:'rock', paper:'paper', scissors:'metal',
+    fire_rock:'fire', fire_paper:'fire', fire_scissors:'fire',
+    ice_rock:'ice', ice_paper:'ice', ice_scissors:'ice',
+    lightning_rock:'lightning', lightning_paper:'lightning', lightning_scissors:'lightning',
+    bomb:'explosion', shield:'shield', heal:'heal', poison:'fire', mirror:'ice'
+  };
+  return map[cardKey] || 'paper';
+}
+
+
+
+// Draw elemental particle effect at (cx,cy) directly on ctx - no canvas clearing
+function drawStageEffect(ctx, cx, cy, type, color, ts) {
+  const t = (ts * 0.001) % (Math.PI * 2);
+  ctx.save();
+  if (type === 'fire') {
+    for (let i=0; i<8; i++) {
+      const a = (i/8)*Math.PI*2 + t*2;
+      const r = 18 + Math.sin(t*3+i)*6;
+      const px = cx + Math.cos(a)*r*0.4;
+      const py = cy + 20 - Math.abs(Math.sin(t*2+i))*25;
+      const g = ctx.createRadialGradient(px,py,0,px,py,8);
+      g.addColorStop(0,'#ffff88'); g.addColorStop(0.4,'#ff6600'); g.addColorStop(1,'transparent');
+      ctx.globalAlpha = 0.6 + Math.sin(t*3+i)*0.2;
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(px,py,8,0,Math.PI*2); ctx.fill();
+    }
+  } else if (type === 'ice') {
+    for (let i=0; i<8; i++) {
+      const a = (i/8)*Math.PI*2 + t*0.5;
+      const r = 30;
+      const px = cx + Math.cos(a)*r;
+      const py = cy + Math.sin(a)*r*0.7;
+      const twinkle = Math.abs(Math.sin(t*4+i));
+      ctx.globalAlpha = twinkle * 0.8;
+      ctx.save(); ctx.translate(px,py); ctx.rotate(a+t);
+      ctx.fillStyle = '#aaeeff';
+      const s = 3 + twinkle*2;
+      ctx.beginPath();
+      ctx.moveTo(0,-s*2); ctx.lineTo(s*.3,-s*.3); ctx.lineTo(s*2,0);
+      ctx.lineTo(s*.3,s*.3); ctx.lineTo(0,s*2); ctx.lineTo(-s*.3,s*.3);
+      ctx.lineTo(-s*2,0); ctx.lineTo(-s*.3,-s*.3); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  } else if (type === 'lightning') {
+    if (Math.sin(t*8) > 0) {
+      ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1.5;
+      ctx.shadowColor = '#ffee00'; ctx.shadowBlur = 8;
+      ctx.globalAlpha = 0.8;
+      for (let b=0; b<2; b++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + (Math.random()-.5)*20, cy-35);
+        let py = cy-35;
+        while (py < cy+20) { py+=10; ctx.lineTo(cx+(Math.random()-.5)*30, py); }
+        ctx.stroke();
+      }
+      ctx.shadowBlur=0;
+    }
+  } else if (type === 'rock') {
+    for (let i=0; i<5; i++) {
+      const a = (i/5)*Math.PI*2 + t*0.3;
+      const r = 25 + Math.sin(t+i)*5;
+      const px = cx + Math.cos(a)*r;
+      const py = cy + Math.sin(a)*r*0.6;
+      ctx.globalAlpha = 0.5;
+      ctx.save(); ctx.translate(px,py); ctx.rotate(t+i);
+      ctx.fillStyle='#999'; ctx.strokeStyle='#555'; ctx.lineWidth=0.5;
+      const s=4;
+      ctx.beginPath();
+      ctx.moveTo(-s,-s*.5); ctx.lineTo(0,-s); ctx.lineTo(s,-s*.3);
+      ctx.lineTo(s*.8,s*.5); ctx.lineTo(-s*.3,s); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+  } else if (type === 'metal') {
+    for (let i=0; i<6; i++) {
+      const a = (i/6)*Math.PI*2 + t*1.5;
+      const r = 28;
+      const px = cx + Math.cos(a)*r;
+      const py = cy + Math.sin(a)*r*0.6;
+      const g = ctx.createRadialGradient(px,py,0,px,py,6);
+      g.addColorStop(0,'#fff'); g.addColorStop(1,'transparent');
+      ctx.globalAlpha = Math.abs(Math.sin(t*2+i))*0.7;
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function startStageAnimation() {
+  const canvas = $('stage-canvas');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    if (canvas.offsetWidth > 0) { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+  }
+  resize(); setTimeout(resize, 100);
+  window.addEventListener('resize', resize);
+
+  for (let i=0; i<25; i++) bgParticles.push({
+    x: Math.random()*800, y: Math.random()*300,
+    vx: (Math.random()-.5)*.35, vy: (Math.random()-.5)*.35,
+    r: Math.random()*1.8+.4, alpha: Math.random()*.3+.08,
+    color: Math.random()>.5 ? '#0ff' : '#b06fff'
+  });
+
+  let last = 0;
+  function frame(ts) {
+    animFrame = requestAnimationFrame(frame);
+    const dt = Math.min(ts-last, 50); last = ts;
+    const W = canvas.width||300, H = canvas.height||200;
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.save(); ctx.globalAlpha = .04;
+    for (let i=0; i<5; i++) {
+      ctx.strokeStyle='#b06fff'; ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(W/2+Math.sin(ts*.001+i)*W*.4, 0);
+      ctx.lineTo(W/2+Math.sin(ts*.001+i+Math.PI)*W*.4, H);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    bgParticles.forEach(p => {
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+      ctx.save(); ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+
+    // Stage fighters handled by DOM elements (#sf-left, #sf-right)
+
+    if (clashActive) {
+      clashTimer += dt;
+      clashParticles2.forEach(p => {
+        p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06; p.alpha-=.011; p.r+=.1;
+        ctx.save(); ctx.globalAlpha=Math.max(0,p.alpha); ctx.fillStyle=p.color;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+      });
+      clashParticles2 = clashParticles2.filter(p=>p.alpha>0);
+      for (let r=0; r<3; r++) {
+        const t2 = Math.max(0,(clashTimer-r*120)/500);
+        if (t2>0&&t2<1) {
+          ctx.save(); ctx.globalAlpha=(1-t2)*.5; ctx.strokeStyle='#fff'; ctx.lineWidth=2.5;
+          ctx.beginPath(); ctx.arc(W/2,H*.5,t2*W*.4,0,Math.PI*2); ctx.stroke(); ctx.restore();
+        }
+      }
+      if (clashParticles2.length===0 && clashTimer>800) clashActive=false;
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+const stageFighters = [null, null];
+
+function showCardOnStage(seat, info) {
+  const el = $(seat===0 ? 'sf-left' : 'sf-right');
+  const emojiEl = $('sf-emoji-'+seat);
+  const nameEl = $('sf-name-'+seat);
+  const cvs = $('sf-canvas-'+seat);
+
+  emojiEl.textContent = info.icon;
+  emojiEl.style.color = info.color;
+  nameEl.textContent = info.name;
+  nameEl.style.color = info.color;
+
+  // Start ElementEffect on this fighter's canvas
+  if (stageFighters[seat] && stageFighters[seat].effect) {
+    stageFighters[seat].effect.running = false;
+  }
+  const effectType = info.effect || getCardEffect(info.card) || 'paper';
+  const eff = new ElementEffect(cvs, effectType, info.color);
+  stageFighters[seat] = { el, emojiEl, effect: eff, color: info.color };
+
+  // Animate in from offscreen
+  el.style.transition = 'none';
+  el.style.display = 'flex';
+  el.style.transform = seat===0 ? 'translateX(-120px)' : 'translateX(120px)';
+  requestAnimationFrame(() => {
+    el.style.transition = 'transform .3s ease-out';
+    el.style.transform = 'translateX(0) scale(1)';
+  });
+}
+
+function clearStageCards() {
+  [0,1].forEach(seat => {
+    if (stageFighters[seat]) {
+      if (stageFighters[seat].effect) stageFighters[seat].effect.running = false;
+      const el = $(seat===0?'sf-left':'sf-right');
+      el.style.transition = 'transform .2s ease-in, opacity .2s';
+      el.style.transform = seat===0 ? 'translateX(-120px)' : 'translateX(120px)';
+      el.style.opacity = '0';
+      setTimeout(() => { el.style.display='none'; el.style.opacity='1'; el.style.transform='translateX(0)'; }, 220);
+      stageFighters[seat] = null;
+    }
+  });
+  stageCards[0]=null; stageCards[1]=null;
+}
+
+function animateClash(result, c0, c1) {
+  const stage = $('battle-stage');
+  const left = $('sf-left');
+  const right = $('sf-right');
+  const leftEmoji = $('sf-emoji-0');
+  const rightEmoji = $('sf-emoji-1');
+
+  // Wind up
+  setTimeout(() => {
+    leftEmoji.style.transform = 'scale(1.2) rotate(-10deg)';
+    rightEmoji.style.transform = 'scale(1.2) rotate(10deg)';
+  }, 100);
+
+  // Dash toward center
+  setTimeout(() => {
+    left.style.transition = 'left .12s ease-in, transform .12s';
+    left.style.left = '28%';
+    right.style.transition = 'right .12s ease-in, transform .12s';
+    right.style.right = '28%';
+    leftEmoji.style.transform = 'scale(1.3) rotate(-15deg)';
+    rightEmoji.style.transform = 'scale(1.3) rotate(15deg)';
+  }, 300);
+
+  // IMPACT
+  setTimeout(() => {
+    // Flash
+    const flash = document.createElement('div');
+    flash.style.cssText = 'position:absolute;inset:0;background:#fff;opacity:.85;pointer-events:none;z-index:20;border-radius:inherit;';
+    stage.appendChild(flash);
+    setTimeout(() => { flash.style.transition='opacity .1s'; flash.style.opacity='0'; setTimeout(()=>flash.remove(),100); }, 60);
+
+    // Screen shake
+    stage.style.transform = 'translateX(-5px)';
+    setTimeout(()=>stage.style.transform='translateX(5px)',40);
+    setTimeout(()=>stage.style.transform='translateX(-3px)',80);
+    setTimeout(()=>stage.style.transform='translateX(0)',120);
+
+    // Shockwave rings
+    for (let r=0; r<3; r++) {
+      setTimeout(() => {
+        const ring = document.createElement('div');
+        ring.style.cssText = `position:absolute;left:50%;top:50%;width:20px;height:20px;border:3px solid rgba(255,255,255,.8);border-radius:50%;pointer-events:none;z-index:15;transform:translate(-50%,-50%);transition:all .4s ease-out;`;
+        stage.appendChild(ring);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          ring.style.width='200px'; ring.style.height='200px';
+          ring.style.opacity='0'; ring.style.borderColor=`rgba(255,200,0,.3)`;
+          setTimeout(()=>ring.remove(),400);
+        }));
+      }, r*80);
+    }
+
+    // Burst particles
+    const colors=[c0.color,c1.color,'#fff','#ff0','#f80'];
+    for (let i=0;i<24;i++) {
+      const p=document.createElement('div');
+      const sz=3+Math.random()*5;
+      const col=colors[Math.floor(Math.random()*colors.length)];
+      p.style.cssText=`position:absolute;left:50%;top:50%;width:${sz}px;height:${sz}px;border-radius:50%;background:${col};box-shadow:0 0 6px ${col};pointer-events:none;z-index:14;opacity:1;transition:all ${.3+Math.random()*.4}s ease-out;transform:translate(-50%,-50%)`;
+      stage.appendChild(p);
+      const angle=(Math.PI*2/24)*i, dist=40+Math.random()*80;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        p.style.transform=`translate(calc(-50% + ${Math.cos(angle)*dist}px),calc(-50% + ${Math.sin(angle)*dist}px))`;
+        p.style.opacity='0';
+        setTimeout(()=>p.remove(),700);
+      }));
+    }
+
+    // Knockback loser
+    const loserSeat = result.winner === -1 ? -1 : (result.winner === mySeat ? 1 : 0);
+    if (loserSeat === 0) {
+      left.style.transition='left .2s ease-out,transform .2s';
+      left.style.left='-5%'; left.style.transform='rotate(25deg) scale(.85)';
+      leftEmoji.style.transform='scale(.8) rotate(30deg)';
+    } else if (loserSeat === 1) {
+      right.style.transition='right .2s ease-out,transform .2s';
+      right.style.right='-5%'; right.style.transform='rotate(-25deg) scale(.85)';
+      rightEmoji.style.transform='scale(.8) rotate(-30deg)';
+    }
+  }, 420);
+
+  // Return to position
+  setTimeout(() => {
+    left.style.transition='left .2s ease-out,transform .2s';
+    left.style.left='8%'; left.style.transform='none';
+    right.style.transition='right .2s ease-out,transform .2s';
+    right.style.right='8%'; right.style.transform='none';
+    leftEmoji.style.transform='none';
+    rightEmoji.style.transform='none';
+  }, 750);
+
+  // Show result message
+  let msg='', color='#fff';
+  if (result.winner===-1){msg='TIE!';color='#aaa';}
+  else{const w=result.winner===mySeat;msg=w?'✨ YOU WIN! ✨':'💀 OPPONENT WINS';color=w?'var(--gold)':'var(--red)';}
+  setTimeout(()=>showStageMsg(msg,color,2500), 500);
+}
+
+function showDamage(seat, amount) {
+  const stage=$('battle-stage');
+  const el=document.createElement('div');
+  el.className='dmg-number';
+  el.textContent='-'+amount+' HP';
+  el.style.color=seat===mySeat?'var(--red)':'var(--green)';
+  el.style.left=(seat===mySeat?20:60)+'%';
+  el.style.top='30%';
+  stage.appendChild(el);
+  setTimeout(()=>el.remove(),1500);
+}
+
+function showStageMsg(msg, color, duration) {
+  const el=$('stage-msg');
+  el.textContent=msg;
+  el.style.color=color;
+  el.style.textShadow='0 0 20px '+color;
+  el.style.opacity='1';
+  setTimeout(()=>el.style.opacity='0',duration);
+}
+
+function addBattleLog(msg, color) {
+  const log=$('battle-log');
+  const el=document.createElement('div');
+  el.className='log-line';
+  el.style.color=color||'#ffffff60';
+  el.textContent=msg;
+  log.appendChild(el);
+  while(log.children.length>4) log.firstChild.remove();
+}
+
+function setBattleStatus(msg) { $('battle-status').textContent=msg; }
+
+
+// ════════════════════════════════════════════════════════════════════
+// WATCH MODE ANIMATION (mirrors battle screen for spectators)
+// ════════════════════════════════════════════════════════════════════
+const watchStageCards = [null, null];
+let watchStageFighters = [null, null];
+let watchAnimFrame = null, watchBgParticles = [];
+let watchClashActive = false, watchClashTimer = 0, watchClashParticles = [];
+let watchNames = ['Player 1', 'Player 2'];
+
+function startWatchAnimation() {
+  const canvas = $('watch-canvas');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    if (canvas.offsetWidth > 0) { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+  }
+  resize(); setTimeout(resize, 100);
+  window.addEventListener('resize', resize);
+
+  for (let i=0; i<20; i++) watchBgParticles.push({
+    x: Math.random()*800, y: Math.random()*300,
+    vx: (Math.random()-.5)*.3, vy: (Math.random()-.5)*.3,
+    r: Math.random()*1.5+.4, alpha: Math.random()*.25+.06,
+    color: Math.random()>.5 ? '#0ff' : '#b06fff'
+  });
+
+  let last = 0;
+  function frame(ts) {
+    watchAnimFrame = requestAnimationFrame(frame);
+    const dt = Math.min(ts-last, 50); last = ts;
+    const W = canvas.width||300, H = canvas.height||200;
+    ctx.clearRect(0,0,W,H);
+
+    // Background
+    ctx.save(); ctx.globalAlpha=.04;
+    for (let i=0;i<4;i++){
+      ctx.strokeStyle='#b06fff'; ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(W/2+Math.sin(ts*.001+i)*W*.4,0);
+      ctx.lineTo(W/2+Math.sin(ts*.001+i+Math.PI)*W*.4,H);
+      ctx.stroke();
+    }
+    ctx.restore();
+    watchBgParticles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+      ctx.save(); ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+
+    // Clash particles
+    if (watchClashActive) {
+      watchClashTimer += dt;
+      watchClashParticles.forEach(p=>{
+        p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06; p.alpha-=.011; p.r+=.1;
+        ctx.save(); ctx.globalAlpha=Math.max(0,p.alpha); ctx.fillStyle=p.color;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+      });
+      watchClashParticles = watchClashParticles.filter(p=>p.alpha>0);
+      for (let r=0;r<3;r++){
+        const t2=Math.max(0,(watchClashTimer-r*120)/500);
+        if(t2>0&&t2<1){
+          ctx.save(); ctx.globalAlpha=(1-t2)*.5; ctx.strokeStyle='#fff'; ctx.lineWidth=2.5;
+          ctx.beginPath(); ctx.arc(W/2,H*.5,t2*W*.4,0,Math.PI*2); ctx.stroke(); ctx.restore();
+        }
+      }
+      if(watchClashParticles.length===0&&watchClashTimer>800) watchClashActive=false;
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showWatchCard(seat, info) {
+  const el = $(seat===0 ? 'wsf-left' : 'wsf-right');
+  const emojiEl = $('wsf-emoji-'+seat);
+  const nameEl = $('wsf-name-'+seat);
+  const cvs = $('wsf-canvas-'+seat);
+  emojiEl.textContent = info.icon;
+  emojiEl.style.color = info.color;
+  nameEl.textContent = info.name;
+  nameEl.style.color = info.color;
+  if (watchStageFighters[seat] && watchStageFighters[seat].effect) watchStageFighters[seat].effect.running = false;
+  const effectType = info.effect || getCardEffect(info.card) || 'paper';
+  const eff = new ElementEffect(cvs, effectType, info.color);
+  watchStageFighters[seat] = { el, emojiEl, effect: eff, color: info.color };
+  el.style.transition = 'none';
+  el.style.display = 'flex';
+  el.style.transform = seat===0 ? 'translateX(-120px)' : 'translateX(120px)';
+  requestAnimationFrame(()=>{
+    el.style.transition = 'transform .3s ease-out';
+    el.style.transform = 'translateX(0)';
+  });
+}
+
+function clearWatchCards() {
+  [0,1].forEach(seat=>{
+    if (watchStageFighters[seat]) {
+      if (watchStageFighters[seat].effect) watchStageFighters[seat].effect.running = false;
+      const el = $(seat===0?'wsf-left':'wsf-right');
+      el.style.transition = 'transform .2s ease-in, opacity .2s';
+      el.style.transform = seat===0 ? 'translateX(-120px)' : 'translateX(120px)';
+      el.style.opacity = '0';
+      setTimeout(()=>{ el.style.display='none'; el.style.opacity='1'; el.style.transform='translateX(0)'; }, 220);
+      watchStageFighters[seat] = null;
+    }
+  });
+}
+
+function animateWatchClash(result, c0, c1) {
+  const stage = $('watch-stage');
+  const left = $('wsf-left'), right = $('wsf-right');
+  const leftEmoji = $('wsf-emoji-0'), rightEmoji = $('wsf-emoji-1');
+
+  setTimeout(()=>{ leftEmoji.style.transform='scale(1.2) rotate(-10deg)'; rightEmoji.style.transform='scale(1.2) rotate(10deg)'; }, 100);
+  setTimeout(()=>{ left.style.transition='left .12s ease-in'; left.style.left='28%'; right.style.transition='right .12s ease-in'; right.style.right='28%'; leftEmoji.style.transform='scale(1.3) rotate(-15deg)'; rightEmoji.style.transform='scale(1.3) rotate(15deg)'; }, 300);
+  setTimeout(()=>{
+    const flash=document.createElement('div');
+    flash.style.cssText='position:absolute;inset:0;background:#fff;opacity:.85;pointer-events:none;z-index:20;border-radius:inherit;';
+    stage.appendChild(flash);
+    setTimeout(()=>{ flash.style.transition='opacity .1s'; flash.style.opacity='0'; setTimeout(()=>flash.remove(),100); },60);
+
+    stage.style.transform='translateX(-5px)';
+    setTimeout(()=>stage.style.transform='translateX(5px)',40);
+    setTimeout(()=>stage.style.transform='translateX(-3px)',80);
+    setTimeout(()=>stage.style.transform='translateX(0)',120);
+
+    for(let r=0;r<3;r++){
+      setTimeout(()=>{
+        const ring=document.createElement('div');
+        ring.style.cssText='position:absolute;left:50%;top:50%;width:20px;height:20px;border:3px solid rgba(255,255,255,.8);border-radius:50%;pointer-events:none;z-index:15;transform:translate(-50%,-50%);transition:all .4s ease-out;';
+        stage.appendChild(ring);
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{ ring.style.width='200px'; ring.style.height='200px'; ring.style.opacity='0'; setTimeout(()=>ring.remove(),400); }));
+      },r*80);
+    }
+
+    const colors=[c0.color,c1.color,'#fff','#ff0','#f80'];
+    for(let i=0;i<24;i++){
+      const p=document.createElement('div');
+      const sz=3+Math.random()*5, col=colors[Math.floor(Math.random()*colors.length)];
+      p.style.cssText='position:absolute;left:50%;top:50%;width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';box-shadow:0 0 6px '+col+';pointer-events:none;z-index:14;opacity:1;transition:all '+(0.3+Math.random()*0.4)+'s ease-out;transform:translate(-50%,-50%)';
+      stage.appendChild(p);
+      const angle=(Math.PI*2/24)*i, dist=40+Math.random()*80;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ p.style.transform='translate(calc(-50% + '+Math.cos(angle)*dist+'px),calc(-50% + '+Math.sin(angle)*dist+'px))'; p.style.opacity='0'; setTimeout(()=>p.remove(),700); }));
+    }
+
+    const loserSeat = result.winner===-1 ? -1 : result.winner===0 ? 1 : 0;
+    if(loserSeat===0){ left.style.transition='left .2s,transform .2s'; left.style.left='-5%'; left.style.transform='rotate(25deg) scale(.85)'; }
+    else if(loserSeat===1){ right.style.transition='right .2s,transform .2s'; right.style.right='-5%'; right.style.transform='rotate(-25deg) scale(.85)'; }
+  }, 420);
+
+  setTimeout(()=>{ left.style.transition='left .2s,transform .2s'; left.style.left='8%'; left.style.transform='none'; right.style.transition='right .2s,transform .2s'; right.style.right='8%'; right.style.transform='none'; leftEmoji.style.transform='none'; rightEmoji.style.transform='none'; }, 750);
+
+  const winnerName = result.winner===-1 ? 'TIE!' : watchNames[result.winner];
+  const msg = result.winner===-1 ? 'TIE!' : winnerName.toUpperCase()+' WINS!';
+  const color = result.winner===-1 ? '#aaa' : 'var(--gold)';
+  setTimeout(()=>{ const el=$('watch-stage-msg'); el.textContent=msg; el.style.color=color; el.style.opacity='1'; setTimeout(()=>el.style.opacity='0',2500); }, 500);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// WEBRTC
+// ════════════════════════════════════════════════════════════════════
+const ICE_SERVERS = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+function setupWebRTC(initiator) {
+  peerConn = new RTCPeerConnection(ICE_SERVERS);
+
+  if (localStream) {
+    localStream.getTracks().forEach(t => peerConn.addTrack(t, localStream));
+  }
+
+  peerConn.ontrack = e => {
+    if ($('video-p1').srcObject !== e.streams[0]) {
+      $('video-p1').srcObject = e.streams[0];
+    }
+  };
+
+  peerConn.onicecandidate = e => {
+    if (e.candidate) {
+      wsSend({ type: 'webrtc_ice', battleId, candidate: e.candidate, targetId: opponentId });
+    }
+  };
+
+  if (initiator) {
+    setTimeout(createAndSendOffer, 1500);
+  }
+}
+
+async function createAndSendOffer() {
+  try {
+    const offer = await peerConn.createOffer();
+    await peerConn.setLocalDescription(offer);
+    wsSend({ type: 'webrtc_offer', battleId, sdp: offer, targetId: opponentId });
+  } catch(e) { console.error('Offer error:', e); }
+}
+
+async function handleOffer(m) {
+  if (!peerConn) return;
+  try {
+    await peerConn.setRemoteDescription(new RTCSessionDescription(m.sdp));
+    const answer = await peerConn.createAnswer();
+    await peerConn.setLocalDescription(answer);
+    wsSend({ type: 'webrtc_answer', battleId, sdp: answer, targetId: opponentId });
+  } catch(e) { console.error('Answer error:', e); }
+}
+
+async function handleAnswer(m) {
+  if (!peerConn) return;
+  try {
+    await peerConn.setRemoteDescription(new RTCSessionDescription(m.sdp));
+  } catch(e) { console.error('Answer error:', e); }
+}
+
+async function handleIce(m) {
+  if (!peerConn || !m.candidate) return;
+  try {
+    await peerConn.addIceCandidate(new RTCIceCandidate(m.candidate));
+  } catch(e) {}
+}
+
+</script>
+</body>
+</html>
