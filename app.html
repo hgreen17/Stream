@@ -270,67 +270,21 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 
 <!-- ═══ SPECTATOR WATCH SCREEN ════════════════════════════════════════════════ -->
 <div id="screen-watch" class="screen">
-  <div class="battle-layout">
-    <!-- Video feeds from WebRTC streams -->
-    <div class="video-strip">
-      <div class="video-half">
-        <video id="watch-video-0" autoplay playsinline muted></video>
-        <div class="video-label" id="watch-name-0" style="color:var(--teal)">Player 1</div>
+  <div style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;gap:4px;padding:8px;background:#0a0a14">
+      <div style="flex:1;text-align:center">
+        <video id="watch-video-0" autoplay playsinline muted style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#111;border:1px solid #ffffff20"></video>
+        <div id="watch-name-0" style="font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:2px;color:#ffffff60;margin-top:4px">PLAYER 1</div>
       </div>
-      <div class="video-divider"></div>
-      <div class="vs-badge">VS</div>
-      <div class="video-half">
-        <video id="watch-video-1" autoplay playsinline muted></video>
-        <div class="video-label" id="watch-name-1" style="color:var(--gold)">Player 2</div>
+      <div style="flex:1;text-align:center">
+        <video id="watch-video-1" autoplay playsinline muted style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#111;border:1px solid #ffffff20"></video>
+        <div id="watch-name-1" style="font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:2px;color:#ffffff60;margin-top:4px">PLAYER 2</div>
       </div>
     </div>
-    <!-- Stats -->
-    <div class="battle-stats">
-      <div class="stat-player">
-        <div class="stat-name" id="watch-stat-name0">Player 1</div>
-        <div class="hp-bar-wrap" id="watch-hp-wrap0" style="display:none">
-          <div class="hp-bar" id="watch-hp-bar0" style="width:100%"></div>
-        </div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--teal)" id="watch-hp-text0"></div>
-      </div>
-      <div style="text-align:center">
-        <div class="stat-round" id="watch-round-label">ROUND</div>
-        <div class="stat-score" id="watch-score">0 — 0</div>
-      </div>
-      <div class="stat-player" style="align-items:flex-end">
-        <div class="stat-name right" id="watch-stat-name1">Player 2</div>
-        <div class="hp-bar-wrap" id="watch-hp-wrap1" style="display:none;direction:rtl">
-          <div class="hp-bar" id="watch-hp-bar1" style="width:100%"></div>
-        </div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--gold);text-align:right" id="watch-hp-text1"></div>
-      </div>
-    </div>
-    <!-- Stage - reuses same canvas/fighter elements -->
-    <div class="battle-stage" id="watch-stage">
-      <canvas id="watch-canvas"></canvas>
-      <div class="stage-fighter" id="wsf-left" style="display:none">
-        <div class="sf-wrap">
-          <canvas class="sf-canvas" id="wsf-canvas-0" width="160" height="160"></canvas>
-          <div class="sf-emoji" id="wsf-emoji-0"></div>
-          <div class="sf-name" id="wsf-name-0"></div>
-        </div>
-      </div>
-      <div class="stage-fighter" id="wsf-right" style="display:none">
-        <div class="sf-wrap">
-          <canvas class="sf-canvas" id="wsf-canvas-1" width="160" height="160"></canvas>
-          <div class="sf-emoji" id="wsf-emoji-1"></div>
-          <div class="sf-name" id="wsf-name-1"></div>
-        </div>
-      </div>
-      <div class="stage-msg" id="watch-stage-msg"></div>
-      <div id="watch-battle-log"></div>
-    </div>
-    <!-- Status bar (no hand/play controls) -->
-    <div class="battle-controls" style="padding:8px 12px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="status-pill" id="watch-status">Watching...</div>
-        <button class="btn-cancel" onclick="leaveWatch()" style="padding:8px 18px;font-size:9px">LEAVE</button>
-      </div>
+    <div id="watch-score" style="text-align:center;font-family:Orbitron,sans-serif;font-size:18px;letter-spacing:6px;color:var(--gold);padding:8px">0 — 0</div>
+    <div id="watch-log" style="flex:1;padding:8px 14px;overflow-y:auto;font-size:11px;color:#ffffff70;letter-spacing:1px;line-height:1.8"></div>
+    <div style="padding:10px;text-align:center">
+      <button class="btn-cancel" onclick="leaveWatch()" style="padding:8px 24px;font-size:9px;letter-spacing:2px">LEAVE</button>
     </div>
   </div>
 </div>
@@ -520,7 +474,9 @@ window.addEventListener('load', () => {
 // WEBSOCKET
 // ════════════════════════════════════════════════════════════════════
 function connectWS() {
-  const url = 'wss://' + location.hostname + ':' + location.port;
+  const url = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    ? 'wss://' + location.hostname + ':' + location.port
+    : 'wss://stream-battle.onrender.com';
   try { ws = new WebSocket(url); } catch(e) { $('ln-err').textContent = 'Cannot connect to server'; return; }
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: 'login', name: myName, role: myRole }));
@@ -690,40 +646,9 @@ function handle(m) {
       break;
 
     case 'watch_ready':
-      watchNames = m.names || ['Player 1', 'Player 2'];
       showScreen('screen-watch');
-      $('watch-name-0').textContent = watchNames[0].toUpperCase();
-      $('watch-name-1').textContent = watchNames[1].toUpperCase();
-      $('watch-stat-name0').textContent = watchNames[0].toUpperCase();
-      $('watch-stat-name1').textContent = watchNames[1].toUpperCase();
-      $('watch-score').textContent = '0 — 0';
-      $('watch-round-label').textContent = 'ROUND 1';
-      $('watch-status').textContent = 'Watching...';
-      setTimeout(startWatchAnimation, 100);
-      break;
-
-    case 'watch_card_played':
-      // A player played a card — show it on the watch stage
-      { const wInfo = {...(CARDS[m.card] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:m.card};
-        showWatchCard(m.seat, wInfo); }
-      break;
-
-    case 'watch_round_result':
-      // Full round result for spectators
-      { const wc0 = {...(CARDS[m.choices?.[0]] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:m.choices?.[0]};
-        const wc1 = {...(CARDS[m.choices?.[1]] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:m.choices?.[1]};
-        showWatchCard(0, wc0); showWatchCard(1, wc1);
-        setTimeout(()=>animateWatchClash(m, wc0, wc1), 600);
-        if (m.scores) $('watch-score').textContent=(m.scores[0]||0)+' — '+(m.scores[1]||0);
-        const wlog=$('watch-battle-log');
-        if(wlog&&m.reason){ const el=document.createElement('div'); el.textContent=m.reason; el.style.color=m.winner===-1?'#aaa':'var(--gold)'; wlog.appendChild(el); while(wlog.children.length>4) wlog.firstChild.remove(); }
-        setTimeout(clearWatchCards, 1800);
-        if (m.matchWinner >= 0) {
-          setTimeout(()=>{ $('watch-status').textContent = watchNames[m.matchWinner].toUpperCase()+' WINS THE MATCH! 🏆'; }, 2500);
-        } else {
-          setTimeout(()=>{ if(m.round) $('watch-round-label').textContent='ROUND '+(m.round+1); $('watch-status').textContent='Next round...'; }, 4500);
-        }
-      }
+      $('watch-name-0').textContent = (m.names?.[0] || 'PLAYER 1').toUpperCase();
+      $('watch-name-1').textContent = (m.names?.[1] || 'PLAYER 2').toUpperCase();
       break;
 
     case 'spectator_watch_request':
@@ -763,7 +688,10 @@ function handle(m) {
       if ($('watch-score')) { const sc=m.scores; $('watch-score').textContent=(sc?.[0]||0)+' — '+(sc?.[1]||0); }
       break;
 
-    // watch_log handled by watch_round_result
+    case 'watch_log':
+      { const wlog=$('watch-log');
+        if(wlog){ const el=document.createElement('div'); el.textContent=m.msg; el.style.color=m.color||'#ffffff60'; wlog.appendChild(el); while(wlog.children.length>20) wlog.firstChild.remove(); wlog.scrollTop=wlog.scrollHeight; } }
+      break;
 
 
   }
@@ -1851,164 +1779,6 @@ function addBattleLog(msg, color) {
 }
 
 function setBattleStatus(msg) { $('battle-status').textContent=msg; }
-
-
-// ════════════════════════════════════════════════════════════════════
-// WATCH MODE ANIMATION (mirrors battle screen for spectators)
-// ════════════════════════════════════════════════════════════════════
-const watchStageCards = [null, null];
-let watchStageFighters = [null, null];
-let watchAnimFrame = null, watchBgParticles = [];
-let watchClashActive = false, watchClashTimer = 0, watchClashParticles = [];
-let watchNames = ['Player 1', 'Player 2'];
-
-function startWatchAnimation() {
-  const canvas = $('watch-canvas');
-  const ctx = canvas.getContext('2d');
-  function resize() {
-    if (canvas.offsetWidth > 0) { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
-  }
-  resize(); setTimeout(resize, 100);
-  window.addEventListener('resize', resize);
-
-  for (let i=0; i<20; i++) watchBgParticles.push({
-    x: Math.random()*800, y: Math.random()*300,
-    vx: (Math.random()-.5)*.3, vy: (Math.random()-.5)*.3,
-    r: Math.random()*1.5+.4, alpha: Math.random()*.25+.06,
-    color: Math.random()>.5 ? '#0ff' : '#b06fff'
-  });
-
-  let last = 0;
-  function frame(ts) {
-    watchAnimFrame = requestAnimationFrame(frame);
-    const dt = Math.min(ts-last, 50); last = ts;
-    const W = canvas.width||300, H = canvas.height||200;
-    ctx.clearRect(0,0,W,H);
-
-    // Background
-    ctx.save(); ctx.globalAlpha=.04;
-    for (let i=0;i<4;i++){
-      ctx.strokeStyle='#b06fff'; ctx.lineWidth=1;
-      ctx.beginPath();
-      ctx.moveTo(W/2+Math.sin(ts*.001+i)*W*.4,0);
-      ctx.lineTo(W/2+Math.sin(ts*.001+i+Math.PI)*W*.4,H);
-      ctx.stroke();
-    }
-    ctx.restore();
-    watchBgParticles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy;
-      if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
-      ctx.save(); ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
-    });
-
-    // Clash particles
-    if (watchClashActive) {
-      watchClashTimer += dt;
-      watchClashParticles.forEach(p=>{
-        p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06; p.alpha-=.011; p.r+=.1;
-        ctx.save(); ctx.globalAlpha=Math.max(0,p.alpha); ctx.fillStyle=p.color;
-        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
-      });
-      watchClashParticles = watchClashParticles.filter(p=>p.alpha>0);
-      for (let r=0;r<3;r++){
-        const t2=Math.max(0,(watchClashTimer-r*120)/500);
-        if(t2>0&&t2<1){
-          ctx.save(); ctx.globalAlpha=(1-t2)*.5; ctx.strokeStyle='#fff'; ctx.lineWidth=2.5;
-          ctx.beginPath(); ctx.arc(W/2,H*.5,t2*W*.4,0,Math.PI*2); ctx.stroke(); ctx.restore();
-        }
-      }
-      if(watchClashParticles.length===0&&watchClashTimer>800) watchClashActive=false;
-    }
-  }
-  requestAnimationFrame(frame);
-}
-
-function showWatchCard(seat, info) {
-  const el = $(seat===0 ? 'wsf-left' : 'wsf-right');
-  const emojiEl = $('wsf-emoji-'+seat);
-  const nameEl = $('wsf-name-'+seat);
-  const cvs = $('wsf-canvas-'+seat);
-  emojiEl.textContent = info.icon;
-  emojiEl.style.color = info.color;
-  nameEl.textContent = info.name;
-  nameEl.style.color = info.color;
-  if (watchStageFighters[seat] && watchStageFighters[seat].effect) watchStageFighters[seat].effect.running = false;
-  const effectType = info.effect || getCardEffect(info.card) || 'paper';
-  const eff = new ElementEffect(cvs, effectType, info.color);
-  watchStageFighters[seat] = { el, emojiEl, effect: eff, color: info.color };
-  el.style.transition = 'none';
-  el.style.display = 'flex';
-  el.style.transform = seat===0 ? 'translateX(-120px)' : 'translateX(120px)';
-  requestAnimationFrame(()=>{
-    el.style.transition = 'transform .3s ease-out';
-    el.style.transform = 'translateX(0)';
-  });
-}
-
-function clearWatchCards() {
-  [0,1].forEach(seat=>{
-    if (watchStageFighters[seat]) {
-      if (watchStageFighters[seat].effect) watchStageFighters[seat].effect.running = false;
-      const el = $(seat===0?'wsf-left':'wsf-right');
-      el.style.transition = 'transform .2s ease-in, opacity .2s';
-      el.style.transform = seat===0 ? 'translateX(-120px)' : 'translateX(120px)';
-      el.style.opacity = '0';
-      setTimeout(()=>{ el.style.display='none'; el.style.opacity='1'; el.style.transform='translateX(0)'; }, 220);
-      watchStageFighters[seat] = null;
-    }
-  });
-}
-
-function animateWatchClash(result, c0, c1) {
-  const stage = $('watch-stage');
-  const left = $('wsf-left'), right = $('wsf-right');
-  const leftEmoji = $('wsf-emoji-0'), rightEmoji = $('wsf-emoji-1');
-
-  setTimeout(()=>{ leftEmoji.style.transform='scale(1.2) rotate(-10deg)'; rightEmoji.style.transform='scale(1.2) rotate(10deg)'; }, 100);
-  setTimeout(()=>{ left.style.transition='left .12s ease-in'; left.style.left='28%'; right.style.transition='right .12s ease-in'; right.style.right='28%'; leftEmoji.style.transform='scale(1.3) rotate(-15deg)'; rightEmoji.style.transform='scale(1.3) rotate(15deg)'; }, 300);
-  setTimeout(()=>{
-    const flash=document.createElement('div');
-    flash.style.cssText='position:absolute;inset:0;background:#fff;opacity:.85;pointer-events:none;z-index:20;border-radius:inherit;';
-    stage.appendChild(flash);
-    setTimeout(()=>{ flash.style.transition='opacity .1s'; flash.style.opacity='0'; setTimeout(()=>flash.remove(),100); },60);
-
-    stage.style.transform='translateX(-5px)';
-    setTimeout(()=>stage.style.transform='translateX(5px)',40);
-    setTimeout(()=>stage.style.transform='translateX(-3px)',80);
-    setTimeout(()=>stage.style.transform='translateX(0)',120);
-
-    for(let r=0;r<3;r++){
-      setTimeout(()=>{
-        const ring=document.createElement('div');
-        ring.style.cssText='position:absolute;left:50%;top:50%;width:20px;height:20px;border:3px solid rgba(255,255,255,.8);border-radius:50%;pointer-events:none;z-index:15;transform:translate(-50%,-50%);transition:all .4s ease-out;';
-        stage.appendChild(ring);
-        requestAnimationFrame(()=>requestAnimationFrame(()=>{ ring.style.width='200px'; ring.style.height='200px'; ring.style.opacity='0'; setTimeout(()=>ring.remove(),400); }));
-      },r*80);
-    }
-
-    const colors=[c0.color,c1.color,'#fff','#ff0','#f80'];
-    for(let i=0;i<24;i++){
-      const p=document.createElement('div');
-      const sz=3+Math.random()*5, col=colors[Math.floor(Math.random()*colors.length)];
-      p.style.cssText='position:absolute;left:50%;top:50%;width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';box-shadow:0 0 6px '+col+';pointer-events:none;z-index:14;opacity:1;transition:all '+(0.3+Math.random()*0.4)+'s ease-out;transform:translate(-50%,-50%)';
-      stage.appendChild(p);
-      const angle=(Math.PI*2/24)*i, dist=40+Math.random()*80;
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{ p.style.transform='translate(calc(-50% + '+Math.cos(angle)*dist+'px),calc(-50% + '+Math.sin(angle)*dist+'px))'; p.style.opacity='0'; setTimeout(()=>p.remove(),700); }));
-    }
-
-    const loserSeat = result.winner===-1 ? -1 : result.winner===0 ? 1 : 0;
-    if(loserSeat===0){ left.style.transition='left .2s,transform .2s'; left.style.left='-5%'; left.style.transform='rotate(25deg) scale(.85)'; }
-    else if(loserSeat===1){ right.style.transition='right .2s,transform .2s'; right.style.right='-5%'; right.style.transform='rotate(-25deg) scale(.85)'; }
-  }, 420);
-
-  setTimeout(()=>{ left.style.transition='left .2s,transform .2s'; left.style.left='8%'; left.style.transform='none'; right.style.transition='right .2s,transform .2s'; right.style.right='8%'; right.style.transform='none'; leftEmoji.style.transform='none'; rightEmoji.style.transform='none'; }, 750);
-
-  const winnerName = result.winner===-1 ? 'TIE!' : watchNames[result.winner];
-  const msg = result.winner===-1 ? 'TIE!' : winnerName.toUpperCase()+' WINS!';
-  const color = result.winner===-1 ? '#aaa' : 'var(--gold)';
-  setTimeout(()=>{ const el=$('watch-stage-msg'); el.textContent=msg; el.style.color=color; el.style.opacity='1'; setTimeout(()=>el.style.opacity='0',2500); }, 500);
-}
 
 // ════════════════════════════════════════════════════════════════════
 // WEBRTC
