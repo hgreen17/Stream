@@ -5,31 +5,19 @@
  * node server.js
  */
 const WebSocket = require('ws');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
+const expressApp = express();
+expressApp.use(express.static(path.join(__dirname)));
+expressApp.get('/', (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
 
-const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, 'key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, 'cert.pem')),
-};
-
-// HTTPS server — serves static files AND upgrades to WSS
-const server = https.createServer(sslOptions, (req, res) => {
-  let filePath = path.join(__dirname, req.url === '/' ? 'app.html' : req.url);
-  // strip query strings
-  filePath = filePath.split('?')[0];
-  const ext = path.extname(filePath);
-  const mime = { '.html':'text/html', '.js':'application/javascript', '.css':'text/css', '.pem':'text/plain' }[ext] || 'application/octet-stream';
-  fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': mime, 'Access-Control-Allow-Origin': '*' });
-    res.end(data);
-  });
-});
+// GoDaddy handles SSL — use plain http
+const http = require('http');
+const server = http.createServer(expressApp);
 
 const wss = new WebSocket.Server({ server });
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 function send(ws, data) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
@@ -62,33 +50,23 @@ function getStreamers() {
 }
 function broadcastStreamers() { broadcast({ type: 'streamer_list', streamers: getStreamers() }); }
 
-const BASICS = ['rock','paper','scissors'];
-const ELEMENTALS = ['fire_rock','fire_paper','fire_scissors','ice_rock','ice_paper','ice_scissors','lightning_rock','lightning_paper','lightning_scissors'];
+const ELEMENTS = ['fire','ice','lightning','rock','wind','rubber','plant'];
+
+const BEATS = {
+  fire:      ['ice','plant','wind'],
+  ice:       ['rock','wind','lightning'],
+  lightning: ['fire','wind','plant'],
+  rock:      ['fire','rubber','plant'],
+  wind:      ['rock','rubber','ice'],
+  rubber:    ['lightning','fire','wind'],
+  plant:     ['rock','ice','rubber'],
+};
 
 function dealHand() {
-  // Plain RPS only — 5 cards
-  const hand = [];
-  for (let i=0;i<5;i++) hand.push(BASICS[Math.floor(Math.random()*3)]);
-  return hand;
+  return [...ELEMENTS].sort(()=>Math.random()-.5).slice(0,4);
 }
 
-function randomElemental() {
-  return ELEMENTALS[Math.floor(Math.random()*ELEMENTALS.length)];
-}
-
-function getBase(card) {
-  if (card.includes('rock')) return 'rock';
-  if (card.includes('paper')) return 'paper';
-  if (card.includes('scissors')) return 'scissors';
-  return card;
-}
-function getElement(card) {
-  if (card.startsWith('fire_')) return 'fire';
-  if (card.startsWith('ice_')) return 'ice';
-  if (card.startsWith('lightning_')) return 'lightning';
-  return 'none';
-}
-function cardName(card) { return card.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+function cardName(card) { return card.charAt(0).toUpperCase()+card.slice(1); }
 function addLog(battle, msg, color) {
   battle.log.push({ msg, color:color||'#0ff' });
   if (battle.log.length > 60) battle.log.shift();
@@ -103,64 +81,19 @@ function notifyAll(battle, data) { notifyPlayers(battle,data); notifySpectators(
 
 function resolveRound(battle) {
   const [c0,c1] = battle.choices;
-  const b0=getBase(c0), b1=getBase(c1);
-  const e0=getElement(c0), e1=getElement(c1);
-  let winner=-1, reason='', dmg=[0,0], baseDmg=20;
+  let winner=-1, reason='', dmg=[0,0];
 
-  if (c0==='bomb'||c1==='bomb'||c0==='shield'||c1==='shield'||c0==='heal'||c1==='heal'||c0==='mirror'||c1==='mirror') {
-    if (c0==='bomb'&&c1==='bomb') { winner=-1; reason='💣 Both played Bomb — draw!'; dmg=[10,10]; }
-    else if (c0==='bomb') { winner=0; dmg=[0,40]; reason='💣 Bomb obliterates '+c1+'!'; }
-    else if (c1==='bomb') { winner=1; dmg=[40,0]; reason='💣 Bomb obliterates '+c0+'!'; }
-    else if (c0==='shield') { winner=-1; dmg=[0,0]; reason='🛡️ '+battle.names[0]+' blocked everything!'; }
-    else if (c1==='shield') { winner=-1; dmg=[0,0]; reason='🛡️ '+battle.names[1]+' blocked everything!'; }
-    else if (c0==='heal') { battle.hp[0]=Math.min(battle.format?.value||100,battle.hp[0]+20); winner=1; dmg=[0,baseDmg]; reason='💚 '+battle.names[0]+' healed 20 HP!'; }
-    else if (c1==='heal') { battle.hp[1]=Math.min(battle.format?.value||100,battle.hp[1]+20); winner=0; dmg=[baseDmg,0]; reason='💚 '+battle.names[1]+' healed 20 HP!'; }
-    else if (c0==='mirror') { const mc=battle.lastCards[1]||'rock'; battle.choices[0]=mc; resolveRound({...battle,choices:[mc,c1]}); return; }
-    else if (c1==='mirror') { const mc=battle.lastCards[0]||'rock'; battle.choices[1]=mc; resolveRound({...battle,choices:[c0,mc]}); return; }
+  if (c0===c1) {
+    winner=-1; reason='Draw! Both played '+cardName(c0)+'!';
+  } else if (BEATS[c0] && BEATS[c0].includes(c1)) {
+    winner=0; reason=cardName(c0)+' defeats '+cardName(c1)+'!';
+    dmg[1]=25;
+  } else if (BEATS[c1] && BEATS[c1].includes(c0)) {
+    winner=1; reason=cardName(c1)+' defeats '+cardName(c0)+'!';
+    dmg[0]=25;
   } else {
-    // Elemental triangle: fire>ice>lightning>fire
-    function elBeats(a,b) {
-      return (a==='fire'&&b==='ice')||(a==='ice'&&b==='lightning')||(a==='lightning'&&b==='fire');
-    }
-    const rpsBeats = (a,b) => (a==='rock'&&b==='scissors')||(a==='scissors'&&b==='paper')||(a==='paper'&&b==='rock');
-    const plain0 = e0==='none', plain1 = e1==='none';
-
-    if (plain0 && plain1) {
-      // Both plain — standard RPS
-      if (b0===b1) { winner=-1; reason='Draw! Both played '+cardName(c0); }
-      else if (rpsBeats(b0,b1)) { winner=0; reason=cardName(c0)+' beats '+cardName(c1)+'!'; }
-      else { winner=1; reason=cardName(c1)+' beats '+cardName(c0)+'!'; }
-    } else if (!plain0 && plain1) {
-      // c0 is elemental, c1 is plain — elemental always wins
-      winner=0; reason=cardName(c0)+' overpowers plain '+cardName(c1)+'! ✨';
-    } else if (plain0 && !plain1) {
-      // c1 is elemental, c0 is plain — elemental always wins
-      winner=1; reason=cardName(c1)+' overpowers plain '+cardName(c0)+'! ✨';
-    } else {
-      // Both elemental
-      if (b0===b1) {
-        // Same base — elemental triangle decides
-        if (e0===e1) { winner=-1; reason='Draw! Both played '+cardName(c0); }
-        else if (elBeats(e0,e1)) { winner=0; reason=cardName(c0)+' overpowers '+cardName(c1)+'!'; }
-        else { winner=1; reason=cardName(c1)+' overpowers '+cardName(c0)+'!'; }
-      } else {
-        // Different base — RPS decides first
-        if (rpsBeats(b0,b1)) { winner=0; reason=cardName(c0)+' beats '+cardName(c1)+'!'; }
-        else { winner=1; reason=cardName(c1)+' beats '+cardName(c0)+'!'; }
-      }
-    }
-
-    if (winner!==-1) {
-      const winEl=winner===0?e0:e1;
-      if (winEl==='fire')      { baseDmg=28; reason+=' 🔥 Fire bonus!'; }
-      if (winEl==='ice')       { baseDmg=22; battle.effects.freeze[1-winner]=true; reason+=' ❄️ Frozen!'; }
-      if (winEl==='lightning') { baseDmg=25; reason+=' ⚡ Lightning!'; }
-      dmg[1-winner]=baseDmg;
-    }
+    winner=-1; reason='Draw! '+cardName(c0)+' vs '+cardName(c1)+'!';
   }
-
-  if (battle.effects.lightning) { dmg[battle.effects.lightning.seat]+=15; delete battle.effects.lightning; }
-  [0,1].forEach(s=>{ if(battle.effects.burn[s]){dmg[s]+=10; battle.effects.burn[s]=false; reason+=` 🔥 ${battle.names[s]} burned!`;} });
 
   if (battle.format?.type==='hp') {
     battle.hp[0]=Math.max(0,battle.hp[0]-dmg[0]);
@@ -194,7 +127,6 @@ function resolveRound(battle) {
   }
 
   notifyAll(battle,result);
-  // Send full round result to spectators
   for(const[,c]of clients) if(c.battleId===battle.id&&c.isSpectator) {
     send(c.ws,{type:'watch_round_result',round:battle.round,choices:battle.choices,winner,reason,scores:battle.scores,hp:battle.hp,dmg,matchWinner,matchWinnerName:matchWinner>=0?battle.names[matchWinner]:null});
   }
@@ -203,14 +135,17 @@ function resolveRound(battle) {
     setTimeout(()=>{
       battle.phase='picking'; battle.choices=[null,null]; battle.locked=[false,false]; battle.round++;
       battle.players.forEach((pid,seat)=>{
-        // Replenish with 2 plain cards only
-        for (let i=0;i<2;i++) battle.hands[seat].push(BASICS[Math.floor(Math.random()*3)]);
+        const pool=[...ELEMENTS].sort(()=>Math.random()-.5);
+        const newCards=pool.filter(e=>!battle.hands[seat].includes(e)).slice(0,2);
+        if(newCards.length<2) newCards.push(...pool.slice(0,2-newCards.length));
+        battle.hands[seat].push(...newCards);
         send(clients.get(pid)?.ws,{type:'new_round',round:battle.round,hand:battle.hands[seat],scores:battle.scores,hp:battle.hp});
       });
       notifyAll(battle,{type:'round_start',round:battle.round,scores:battle.scores,hp:battle.hp});
     },4500);
   }
 }
+
 
 wss.on('connection',(ws)=>{
   const id=nextId++;
@@ -336,9 +271,6 @@ wss.on('connection',(ws)=>{
       if (idx!==-1) battle.hands[seat].splice(idx,1);
       battle.choices[seat]=card; battle.locked[seat]=true;
       notifyAll(battle,{type:'player_locked',seat,name:battle.names[seat]});
-      // Notify spectators which card was played (reveal to them immediately)
-      for(const[,c]of clients) if(c.battleId===battle.id&&c.isSpectator)
-        send(c.ws,{type:'watch_card_played',seat,card});
       if (battle.locked[0]&&battle.locked[1]) { battle.phase='revealing'; setTimeout(()=>resolveRound(battle),800); }
     }
     else if (msg.type==='gift') {

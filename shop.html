@@ -274,7 +274,7 @@
 
 <div class="connection-bar">
   <input id="viewerName" placeholder="YOUR NAME" value="Viewer">
-  <input id="wsUrl" placeholder="ws://localhost:8080" value="ws://localhost:8080">
+  <input id="wsUrl" placeholder="wss://yourdomain.com" id="wsUrl" value="wss://yourdomain.com">
   <button id="connectBtn">CONNECT</button>
 </div>
 
@@ -319,7 +319,9 @@ const FALLBACK_DROPS = {
 document.getElementById('connectBtn').addEventListener('click', connect);
 
 function connect() {
-  const url  = document.getElementById('wsUrl').value.trim()      || 'ws://localhost:8080';
+  const isLocal = location.hostname === 'localhost' || location.hostname.startsWith('192.168.');
+  const defaultUrl = isLocal ? 'wss://' + location.hostname + ':' + location.port : 'wss://' + location.hostname;
+  const url = document.getElementById('wsUrl').value.trim() || defaultUrl;
   const name = document.getElementById('viewerName').value.trim() || 'Viewer';
 
   setStatus('connecting...', '#fa0');
