@@ -34,13 +34,13 @@ const battles = new Map();
 let nextId = 1;
 
 const GIFTS = {
-  fire_blast:  { label:'Fire Blast',  icon:'🔥', color:'#f60', type:'instant', desc:"Burns opponent's next card", effect:'burn' },
-  ice_freeze:  { label:'Ice Freeze',  icon:'❄️',  color:'#8cf', type:'instant', desc:'Freezes opponent — skips their pick', effect:'freeze' },
-  lightning:   { label:'Lightning',   icon:'⚡',  color:'#ff0', type:'instant', desc:'Deals 15 bonus damage this round', effect:'lightning' },
-  bomb:        { label:'Bomb',        icon:'💣', color:'#f40', type:'card',    desc:'Beats all basic cards', card:'bomb' },
-  mirror:      { label:'Mirror',      icon:'🪞', color:'#aef', type:'card',    desc:"Copies opponent's last card", card:'mirror' },
-  shield_gift: { label:'Shield',      icon:'🛡️', color:'#08f', type:'card',    desc:'Blocks all damage this round', card:'shield' },
-  heal_gift:   { label:'Heal',        icon:'💚', color:'#0f4', type:'card',    desc:'Restores 20 HP', card:'heal' },
+  fire_blast:  { label:'Fire Blast',  icon:'🔥', color:'#f60', type:'card', desc:'Gift a Fire card!',      card:'fire' },
+  ice_freeze:  { label:'Ice Freeze',  icon:'❄️',  color:'#8cf', type:'card', desc:'Gift an Ice card!',       card:'ice' },
+  lightning:   { label:'Lightning',   icon:'⚡',  color:'#ff0', type:'card', desc:'Gift a Lightning card!',  card:'lightning' },
+  rock_drop:   { label:'Rock Drop',   icon:'🪨', color:'#c94', type:'card', desc:'Gift a Rock card!',       card:'rock' },
+  wind_gust:   { label:'Wind Gust',   icon:'💨', color:'#afc', type:'card', desc:'Gift a Wind card!',       card:'wind' },
+  rubber_band: { label:'Rubber',      icon:'⚫', color:'#888', type:'card', desc:'Gift a Rubber card!',     card:'rubber' },
+  plant_surge: { label:'Plant Surge', icon:'🌿', color:'#4f8', type:'card', desc:'Gift a Plant card!',      card:'plant' },
 };
 
 function getStreamers() {
@@ -175,8 +175,6 @@ wss.on('connection',(ws)=>{
         const battleId='b'+Date.now();
         const startHands = [dealHand(), dealHand()];
         // Each player gets exactly 1 random elemental at game start
-        startHands[0].push(randomElemental());
-        startHands[1].push(randomElemental());
         const battle={id:battleId,players:[msg.fromId,id],names:[chal.name,client.name],phase:'setup',format:null,scores:[0,0],hp:[100,100],choices:[null,null],locked:[false,false],hands:startHands,lastCards:[null,null],effects:{burn:[false,false],freeze:[false,false]},log:[],round:0,elementalGifts:[0,0]};
         battles.set(battleId,battle);
         [msg.fromId,id].forEach((pid,seat)=>{
@@ -194,8 +192,6 @@ wss.on('connection',(ws)=>{
       const battleId='b'+Date.now();
       const startHands = [dealHand(), dealHand()];
         // Each player gets exactly 1 random elemental at game start
-        startHands[0].push(randomElemental());
-        startHands[1].push(randomElemental());
         const battle={id:battleId,players:[msg.fromId,id],names:[chal.name,client.name],phase:'setup',format:null,scores:[0,0],hp:[100,100],choices:[null,null],locked:[false,false],hands:startHands,lastCards:[null,null],effects:{burn:[false,false],freeze:[false,false]},log:[],round:0,elementalGifts:[0,0]};
       battles.set(battleId,battle);
       [msg.fromId,id].forEach((pid,seat)=>{
@@ -288,7 +284,7 @@ wss.on('connection',(ws)=>{
         notifyAll(battle,{type:'gift_effect',effect:gift.effect,targetSeat,gift,viewerName});
       } else {
         // Check if this is an elemental card gift — max 2 per player per game
-        const isElemental = ELEMENTALS.includes(gift.card);
+        const isElemental = Object.keys(BEATS).includes(gift.card);
         if (isElemental) {
           if (!battle.elementalGifts) battle.elementalGifts=[0,0];
           if (battle.elementalGifts[targetSeat] >= 2) {
@@ -306,7 +302,6 @@ wss.on('connection',(ws)=>{
     else if (msg.type==='rematch') {
       const battle=battles.get(client.battleId); if(!battle||battle.phase!=='gameover') return;
       const rmHands=[dealHand(),dealHand()];
-      rmHands[0].push(randomElemental()); rmHands[1].push(randomElemental());
       Object.assign(battle,{phase:'picking',scores:[0,0],hp:[100,100],choices:[null,null],locked:[false,false],hands:rmHands,lastCards:[null,null],effects:{burn:[false,false],freeze:[false,false]},log:[],round:1,format:battle.format,elementalGifts:[0,0]});
       battle.players.forEach((pid,seat)=>{ const c=clients.get(pid); if(c) c.status='battling'; send(clients.get(pid)?.ws,{type:'rematch_start',hand:battle.hands[seat]}); });
     }

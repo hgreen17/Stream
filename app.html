@@ -11,6 +11,7 @@
   --bg:#08060e;--bg2:#0e0a1a;--bg3:#130f1f;
   --teal:#0ff;--gold:#fa0;--red:#f44;--green:#0f6;--purple:#b06fff;
   --card-w:90px;--card-h:128px;
+  --card-w:90px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',sans-serif;overflow:hidden}
@@ -58,7 +59,7 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 .challenge-btn{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;padding:8px 14px;background:transparent;border:1px solid var(--purple);color:var(--purple);cursor:pointer;transition:all .2s;border-radius:2px}
 .challenge-btn:hover{background:#b06fff20;box-shadow:0 0 12px #b06fff30}
 .my-stream-box{background:var(--bg2);border:1px solid #ffffff10;padding:16px;border-radius:4px}
-#my-video{width:100%;max-height:200px;object-fit:cover;border-radius:4px;background:#000;display:block}
+#my-video{width:100%;max-height:200px;object-fit:contain;border-radius:4px;background:#000;display:block}
 .stream-controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .stream-btn{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;padding:8px 14px;background:transparent;border:1px solid #ffffff30;color:#ffffff70;cursor:pointer;transition:all .2s;border-radius:2px;flex:1}
 .stream-btn.active{border-color:var(--green);color:var(--green)}
@@ -97,7 +98,7 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 /* Video strip */
 .video-strip{width:100%;height:35vh;display:flex;background:#000;position:relative;flex-shrink:0}
 .video-half{flex:1;position:relative;overflow:hidden}
-.video-half video{width:100%;height:100%;object-fit:cover}
+.video-half video{width:100%;height:100%;object-fit:contain}
 .video-label{position:absolute;bottom:8px;left:10px;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;background:#000a;padding:3px 8px;border-radius:2px}
 .video-divider{position:absolute;left:50%;top:0;bottom:0;width:3px;background:linear-gradient(to bottom,transparent,var(--purple),transparent);transform:translateX(-50%);z-index:5}
 .vs-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:#fff;background:var(--bg2);border:2px solid var(--purple);padding:4px 10px;border-radius:20px;z-index:6;letter-spacing:2px}
@@ -135,6 +136,28 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 
 /* Cards */
 @keyframes cardPulse{0%,100%{opacity:.5}50%{opacity:1}}
+.elem-card-wrap {
+  width: clamp(75px,18vw,110px);
+  aspect-ratio: 9/14;
+}
+@media (min-width: 768px) {
+  .elem-card-wrap {
+    width: clamp(70px,9vw,100px) !important;
+    aspect-ratio: 1/1 !important;
+    max-height: 100px !important;
+    height: 100px !important;
+  }
+  .hand-row { min-height: 110px !important; }
+}
+@media (min-width: 1200px) {
+  .elem-card-wrap {
+    width: 100px !important;
+    height: 100px !important;
+    aspect-ratio: 1/1 !important;
+    max-height: 100px !important;
+  }
+  .hand-row { min-height: 110px !important; }
+}
 .card{width:var(--card-w);height:var(--card-h);border-radius:6px;border:1.5px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:all .2s;background:linear-gradient(160deg,#0d0820,#080612);flex-shrink:0;position:relative;user-select:none}
 .card:hover{transform:translateY(-10px) scale(1.05)}
 .card.selected{transform:translateY(-16px) scale(1.08);box-shadow:0 0 25px currentColor}
@@ -274,11 +297,11 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;gap:4px;padding:8px;background:#0a0a14">
       <div style="flex:1;text-align:center">
-        <video id="watch-video-0" autoplay playsinline muted style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#111;border:1px solid #ffffff20"></video>
+        <video id="watch-video-0" autoplay playsinline muted style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:4px;background:#111;border:1px solid #ffffff20"></video>
         <div id="watch-name-0" style="font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:2px;color:#ffffff60;margin-top:4px">PLAYER 1</div>
       </div>
       <div style="flex:1;text-align:center">
-        <video id="watch-video-1" autoplay playsinline muted style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#111;border:1px solid #ffffff20"></video>
+        <video id="watch-video-1" autoplay playsinline muted style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:4px;background:#111;border:1px solid #ffffff20"></video>
         <div id="watch-name-1" style="font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:2px;color:#ffffff60;margin-top:4px">PLAYER 2</div>
       </div>
     </div>
@@ -382,16 +405,35 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 
 <script>
 // ════════════════════════════════════════════════════════════════════
+// ── VIDEO PRELOAD CACHE ──────────────────────────────────────────
+const videoCache = {};
+const _preloadedVids = videoCache; // alias
+function preloadAllVideos() {
+  Object.entries(CARDS).forEach(([key, card]) => {
+    if (!card.vid || videoCache[key]) return;
+    const v = document.createElement('video');
+    v.src = card.vid;
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.load();
+    // Play a tiny bit to fully unlock on desktop
+    v.play().then(() => { v.pause(); v.currentTime = 0; }).catch(() => {});
+    videoCache[key] = v;
+  });
+}
+
+// ── VIDEO PRELOAD CACHE ──────────────────────────────────────────
 // CARD DEFINITIONS
 // ════════════════════════════════════════════════════════════════════
 const CARDS = {
-  fire:      { name:'FIRE',      color:'#ff4400', img:'assets/images/fire.png',      vid:'assets/videos/fire.mp4',      beats:['ice','plant','wind'] },
-  ice:       { name:'ICE',       color:'#44ddff', img:'assets/images/ice.png',       vid:'assets/videos/ice.mp4',       beats:['rock','wind','lightning'] },
-  lightning: { name:'LIGHTNING', color:'#ffee00', img:'assets/images/lightning.png', vid:'assets/videos/lightning.mp4', beats:['fire','wind','plant'] },
-  rock:      { name:'ROCK',      color:'#cc9944', img:'assets/images/rock.png',      vid:'assets/videos/rock.mp4',      beats:['fire','rubber','plant'] },
-  wind:      { name:'WIND',      color:'#aaffcc', img:'assets/images/wind.png',      vid:'assets/videos/wind.mp4',      beats:['rock','rubber','ice'] },
-  rubber:    { name:'RUBBER',    color:'#888888', img:'assets/images/rubber.png',    vid:'assets/videos/rubber.mp4',    beats:['lightning','fire','wind'] },
-  plant:     { name:'PLANT',     color:'#44ff88', img:'assets/images/plant.png',     vid:'assets/videos/plant.mp4',     beats:['rock','ice','rubber'] },
+  fire:      { name:'FIRE',      color:'#ff4400', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/fire.png',      vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/fire.mp4',      beats:['ice','plant','wind'] },
+  ice:       { name:'ICE',       color:'#44ddff', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/ice.png',       vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/ice.mp4',       beats:['rock','wind','lightning'] },
+  lightning: { name:'LIGHTNING', color:'#ffee00', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/lightning.png', vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/lightning.mp4', beats:['fire','wind','plant'] },
+  rock:      { name:'ROCK',      color:'#cc9944', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/rock.png',      vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rock.mp4',      beats:['fire','rubber','plant'] },
+  wind:      { name:'WIND',      color:'#aaffcc', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/wind.png',      vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/wind.mp4',      beats:['rock','rubber','ice'] },
+  rubber:    { name:'RUBBER',    color:'#888888', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/rubber.png',    vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rubber.mp4',    beats:['lightning','fire','wind'] },
+  plant:     { name:'PLANT',     color:'#44ff88', img:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/images/plant.png',     vid:'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/plant.mp4',     beats:['rock','ice','rubber'] },
 };
 const BASE_DECK = ['fire','ice','lightning','rock','wind','rubber','plant'];
 
@@ -833,6 +875,7 @@ function respondChallenge(accepted) {
 // BATTLE START
 // ════════════════════════════════════════════════════════════════════
 function startBattle(m) {
+  preloadAllVideos(); // preload all elemental videos
   showScreen('screen-battle');
   hasPlayed = false; selectedCard = null;
   // Set initial battle state so cards are enabled
@@ -940,14 +983,19 @@ function renderHand() {
     const isSelected = selectedCard === item.id;
     const el = document.createElement('div');
     el.className = 'card' + (disabled?' disabled':'') + (isSelected?' selected':'');
-    el.style.cssText = `border-color:${info.color};color:${info.color};position:relative;overflow:hidden;padding:0;width:clamp(75px,18vw,110px);aspect-ratio:9/14;cursor:${disabled?'default':'pointer'};transform:${isSelected?'translateY(-20px) scale(1.1)':'none'};box-shadow:${isSelected?`0 0 30px ${info.color},0 0 60px ${info.color}66,0 20px 40px rgba(0,0,0,.8)`:`0 0 8px ${info.color}44`};z-index:${isSelected?10:1};transition:transform .2s,box-shadow .2s;`;
+    el.className += ' elem-card-wrap';
+    el.classList.add('elem-card-wrap');
+    const cardH = window.innerWidth >= 768 ? '80px' : '128px';
+    const cardW = window.innerWidth >= 768 ? '80px' : 'clamp(75px,18vw,110px)';
+    el.style.cssText = `border-color:${info.color};color:${info.color};position:relative;overflow:hidden;padding:0;width:${cardW};height:${cardH};cursor:${disabled?'default':'pointer'};transform:${isSelected?'translateY(-20px) scale(1.1)':'none'};box-shadow:${isSelected?`0 0 30px ${info.color},0 0 60px ${info.color}66,0 20px 40px rgba(0,0,0,.8)`:`0 0 8px ${info.color}44`};z-index:${isSelected?10:1};transition:transform .2s,box-shadow .2s;`;
     const img = document.createElement('img');
     img.src = info.img;
-    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:6px;z-index:1;transition:opacity .3s;'+(isSelected?'opacity:0;':'opacity:1;');
+    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:6px;z-index:1;transition:opacity .3s;background:#000;'+(isSelected?'opacity:0;':'opacity:1;');
     el.appendChild(img);
     const vid = document.createElement('video');
     vid.src = info.vid; vid.autoplay=true; vid.loop=true; vid.muted=true; vid.playsInline=true;
-    vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:6px;z-index:2;transition:opacity .4s;'+(isSelected?'opacity:1;':'opacity:0;');
+    vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:6px;z-index:2;transition:opacity .4s;background:#000;'+(isSelected?'opacity:1;':'opacity:0;');
+    if (isSelected) setTimeout(() => vid.play().catch(()=>{}), 50);
     el.appendChild(vid);
     const lbl = document.createElement('div');
     lbl.style.cssText = `position:absolute;bottom:0;left:0;right:0;padding:5px 3px;text-align:center;font-family:'Orbitron',sans-serif;font-size:clamp(6px,1.5vw,8px);font-weight:700;letter-spacing:1px;color:${info.color};background:linear-gradient(transparent,rgba(0,0,0,.9));border-radius:0 0 6px 6px;z-index:3;`;
@@ -1018,7 +1066,9 @@ function handleRoundResult(m) {
 
   // Animate clash after short delay
   setTimeout(() => {
-    animateClash(m, myServerCard, oppServerCard);
+    // Map server winner seat to visual: my card=left(0), opp card=right(1)
+    const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
+    animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
   }, 600);
 
   // HP damage numbers
@@ -1638,14 +1688,40 @@ function animateClash(result, c0key, c1key) {
   const flash = document.createElement('div');
   flash.style.cssText = 'position:absolute;inset:0;z-index:6;pointer-events:none;opacity:0;background:#fff;transition:opacity .1s;';
   overlay.appendChild(flash);
-  function makeCreature(el, side) {
+  function makeCreature(el, elKey, side) {
     const d = document.createElement('div');
-    d.style.cssText = `position:absolute;bottom:10%;${side}:-55%;width:48%;z-index:10;display:flex;flex-direction:column;align-items:center;transition:none;`;
-    d.innerHTML = `<div style="width:100%;aspect-ratio:9/16;position:relative;overflow:hidden;border-radius:8px;box-shadow:0 0 40px ${el.color},0 0 80px ${el.color}44;"><img src="${el.img}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;z-index:1;"/><video src="${el.vid}" autoplay loop muted playsinline style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;z-index:2;"></video></div><div style="font-family:'Black Ops One',sans-serif;font-size:clamp(12px,3vw,20px);letter-spacing:4px;color:${el.color};margin-top:6px;text-shadow:0 0 20px ${el.color};">${el.name}</div>`;
-    overlay.appendChild(d); return d;
+    const isMobile = window.innerWidth < 768;
+    const creatureW = isMobile ? '46%' : '40%';
+    const creatureMaxH = isMobile ? '75vh' : '75vh';
+    d.style.cssText = `position:absolute;bottom:8%;${side}:-60%;width:${creatureW};max-height:${creatureMaxH};z-index:10;display:flex;flex-direction:column;align-items:center;transition:none;`;
+      const mediaWrap = document.createElement('div');
+    mediaWrap.style.cssText = `width:100%;aspect-ratio:9/16;position:relative;overflow:hidden;border-radius:8px;box-shadow:0 0 40px ${el.color},0 0 80px ${el.color}44;`;
+    const img = document.createElement('img');
+    img.src = el.img;
+    img.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;inset:0;z-index:1;';
+    mediaWrap.appendChild(img);
+    // Use preloaded video if available, else create new
+    const preloaded = _preloadedVids[elKey];
+    let vid;
+    // Always create fresh video - browser cache ensures fast load
+    vid = document.createElement('video');
+    const preEl = document.getElementById('pre-'+elKey);
+    vid.src = preEl ? preEl.src : el.vid;
+    vid.muted=true; vid.loop=true; vid.playsInline=true;
+    vid.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;inset:0;z-index:2;';
+    mediaWrap.appendChild(vid);
+    const nameEl = document.createElement('div');
+    nameEl.style.cssText = `font-family:'Black Ops One',sans-serif;font-size:clamp(12px,3vw,20px);letter-spacing:4px;color:${el.color};margin-top:6px;text-shadow:0 0 20px ${el.color};`;
+    nameEl.textContent = el.name;
+    d.appendChild(mediaWrap);
+    d.appendChild(nameEl);
+    overlay.appendChild(d);
+    // Force play after appending to DOM
+    setTimeout(() => vid.play().catch(()=>{}), 50);
+    return d;
   }
-  const leftEl = makeCreature(c0,'left');
-  const rightEl = makeCreature(c1,'right');
+  const leftEl = makeCreature(c0, c0key, 'left');
+  const rightEl = makeCreature(c1, c1key, 'right');
   const vsEl = document.createElement('div');
   vsEl.style.cssText = "position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);font-family:'Black Ops One',sans-serif;font-size:clamp(60px,15vw,120px);letter-spacing:10px;color:#fff;text-shadow:0 0 40px #fff;z-index:20;opacity:0;pointer-events:none;";
   vsEl.textContent='VS'; overlay.appendChild(vsEl);
@@ -1653,6 +1729,23 @@ function animateClash(result, c0key, c1key) {
   rtEl.style.cssText = "position:absolute;left:50%;top:36%;transform:translate(-50%,-50%) scale(0);font-family:'Black Ops One',sans-serif;font-size:clamp(24px,7vw,60px);text-align:center;z-index:25;opacity:0;pointer-events:none;letter-spacing:3px;";
   overlay.appendChild(rtEl);
   document.body.appendChild(overlay);
+
+  // Use preloaded videos for smooth playback
+  ['left','right'].forEach((side, i) => {
+    const card = i === 0 ? c0 : c1;
+    const vid = overlay.querySelector('#clash-vid-'+side);
+    if (!vid) return;
+    const cached = videoCache[i === 0 ? c0key : c1key];
+    if (cached) {
+      // Clone the cached video's src
+      vid.src = card.vid;
+      vid.currentTime = 0;
+    } else {
+      vid.src = card.vid;
+    }
+    vid.play().catch(() => {});
+  });
+
   let fxParts=[],fxOn=true;
   const cx=window.innerWidth/2, cy=window.innerHeight*.45;
   function fxLoop(){
@@ -1680,25 +1773,25 @@ function animateClash(result, c0key, c1key) {
   }
   function shake(i,d){const s=Date.now();function f(){const t=Date.now()-s;if(t>d){overlay.style.transform='';return;}const v=i*(1-t/d);overlay.style.transform=`translate(${(Math.random()-.5)*v*2}px,${(Math.random()-.5)*v}px)`;requestAnimationFrame(f);}f();}
   const TO=[];const td=(fn,ms)=>{const id=setTimeout(fn,ms);TO.push(id);};
-  td(()=>{leftEl.style.transition='left .5s cubic-bezier(.2,1.3,.4,1)';rightEl.style.transition='right .5s cubic-bezier(.2,1.3,.4,1)';leftEl.style.left='2%';rightEl.style.right='2%';},100);
-  td(()=>{vsEl.style.transition='opacity .2s';vsEl.style.opacity='1';},700);
-  td(()=>{vsEl.style.opacity='0';leftEl.style.transition='left .15s ease-in,transform .15s';rightEl.style.transition='right .15s ease-in,transform .15s';leftEl.style.left='8%';leftEl.style.transform='scale(1.1) rotate(-5deg)';rightEl.style.right='8%';rightEl.style.transform='scale(1.1) rotate(5deg)';},1700);
+  td(()=>{leftEl.style.transition='left .6s cubic-bezier(.2,1.3,.4,1)';rightEl.style.transition='right .6s cubic-bezier(.2,1.3,.4,1)';leftEl.style.left='2%';rightEl.style.right='2%';},300);
+  td(()=>{vsEl.style.transition='opacity .3s';vsEl.style.opacity='1';},1100);
+  td(()=>{vsEl.style.opacity='0';leftEl.style.transition='left .2s ease-in,transform .2s';rightEl.style.transition='right .2s ease-in,transform .2s';leftEl.style.left='10%';leftEl.style.transform='scale(1.15) rotate(-5deg)';rightEl.style.right='10%';rightEl.style.transform='scale(1.15) rotate(5deg)';},2400);
   td(()=>{
     flash.style.transition='none';flash.style.opacity='1';setTimeout(()=>{flash.style.transition='opacity .15s';flash.style.opacity='0';},100);
     for(let r=0;r<6;r++)setTimeout(()=>ring(r%2===0?c0.color:c1.color,80+r*45),r*55);
-    boom(); shake(18,550);
+    boom(); shake(22,700);
     if(result.winner===0){rightEl.style.transition='right .3s,transform .3s,opacity .4s';rightEl.style.right='-30%';rightEl.style.transform='rotate(-45deg) scale(.6)';rightEl.style.opacity='.1';leftEl.style.transform='scale(1.18)';}
     else if(result.winner===1){leftEl.style.transition='left .3s,transform .3s,opacity .4s';leftEl.style.left='-30%';leftEl.style.transform='rotate(45deg) scale(.6)';leftEl.style.opacity='.1';rightEl.style.transform='scale(1.18)';}
     else{leftEl.style.left='-8%';leftEl.style.transform='rotate(-12deg)';rightEl.style.right='-8%';rightEl.style.transform='rotate(12deg)';}
-  },1900);
+  },6700);
   td(()=>{
     const wEl=result.winner===0?c0:result.winner===1?c1:null;
     if(wEl){rtEl.textContent=wEl.name+' WINS!';rtEl.style.color=wEl.color;rtEl.style.textShadow=`0 0 30px ${wEl.color},0 0 60px ${wEl.color}`;for(let i=0;i<60;i++){const a=Math.random()*Math.PI*2,s=4+Math.random()*20;fxParts.push({type:'streak',x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-5,w:2+Math.random()*5,color:Math.random()>.5?wEl.color:'#fff',life:0,maxLife:30+Math.random()*20});}for(let r=0;r<8;r++)setTimeout(()=>ring(wEl.color,100+r*50),r*70);}
     else{rtEl.textContent='DRAW!';rtEl.style.color='#aaa';}
     rtEl.style.transition='none';rtEl.style.opacity='1';rtEl.style.transform='translate(-50%,-50%) scale(3)';
     setTimeout(()=>{rtEl.style.transition='transform .4s cubic-bezier(.15,1.4,.4,1)';rtEl.style.transform='translate(-50%,-50%) scale(1)';},20);
-  },2300);
-  td(()=>{fxOn=false;overlay.style.transition='opacity .5s';overlay.style.opacity='0';setTimeout(()=>overlay.parentNode&&overlay.parentNode.removeChild(overlay),500);},4500);
+  },9300);
+  td(()=>{fxOn=false;overlay.style.transition='opacity .8s';overlay.style.opacity='0';setTimeout(()=>overlay.parentNode&&overlay.parentNode.removeChild(overlay),500);},12000);
 }
 
 function showDamage(seat, amount) {
@@ -1734,6 +1827,8 @@ function addBattleLog(msg, color) {
 
 function setBattleStatus(msg) { $('battle-status').textContent=msg; }
 
+
+// Video preloading handled by preloadAllVideos() in startBattle()
 // ════════════════════════════════════════════════════════════════════
 // WEBRTC
 // ════════════════════════════════════════════════════════════════════
@@ -1795,6 +1890,19 @@ async function handleIce(m) {
   } catch(e) {}
 }
 
+
+
+
 </script>
+<!-- Hidden preloaded videos - ensure browser caches them before clash -->
+<div style="display:none" aria-hidden="true">
+  <video id="pre-fire"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/fire.mp4"      muted loop playsinline preload="auto"></video>
+  <video id="pre-ice"       src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/ice.mp4"       muted loop playsinline preload="auto"></video>
+  <video id="pre-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/lightning.mp4" muted loop playsinline preload="auto"></video>
+  <video id="pre-rock"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rock.mp4"      muted loop playsinline preload="auto"></video>
+  <video id="pre-wind"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/wind.mp4"      muted loop playsinline preload="auto"></video>
+  <video id="pre-rubber"    src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rubber.mp4"    muted loop playsinline preload="auto"></video>
+  <video id="pre-plant"     src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/plant.mp4"     muted loop playsinline preload="auto"></video>
+</div>
 </body>
 </html>
