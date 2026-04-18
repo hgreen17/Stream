@@ -233,9 +233,10 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
     <div id="my-stream-section" style="display:none">
       <div class="section-title">YOUR STREAM</div>
       <div class="my-stream-box">
-        <video id="my-video" autoplay muted playsinline></video>
+        <video id="my-video" autoplay muted playsinline style="transform:scaleX(-1)"></video>
         <div class="stream-controls">
           <button class="stream-btn" id="btn-cam" onclick="toggleCam()">📷 CAMERA OFF</button>
+          <button class="stream-btn" id="btn-mirror" onclick="toggleMirror()">🪞 MIRROR ON</button>
           <button class="stream-btn" id="btn-mic" onclick="toggleMic()">🎙 MIC OFF</button>
         </div>
       </div>
@@ -319,13 +320,13 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
     <!-- Video -->
     <div class="video-strip">
       <div class="video-half" id="vid0">
-        <video id="video-p0" autoplay playsinline muted></video>
+        <video id="video-p0" autoplay playsinline muted style="transform:scaleX(-1)"></video>
         <div class="video-label" id="vlabel0" style="color:var(--teal)">Player 1</div>
       </div>
       <div class="video-divider"></div>
       <div class="vs-badge">VS</div>
       <div class="video-half" id="vid1">
-        <video id="video-p1" autoplay playsinline></video>
+        <video id="video-p1" autoplay playsinline style="transform:scaleX(-1)"></video>
         <div class="video-label" id="vlabel1" style="color:var(--gold)">Player 2</div>
       </div>
     </div>
@@ -825,6 +826,14 @@ async function startCamera() {
     toast('Camera access denied', 'var(--red)');
   }
 }
+let mirrored = true;
+function toggleMirror() {
+  mirrored = !mirrored;
+  const vids = [$('my-video'), $('video-p0')];
+  vids.forEach(v => { if (v) v.style.transform = mirrored ? 'scaleX(-1)' : 'none'; });
+  $('btn-mirror').textContent = mirrored ? '🪞 MIRROR ON' : '🪞 MIRROR OFF';
+}
+
 function toggleCam() {
   if (!localStream) return;
   camOn = !camOn;
