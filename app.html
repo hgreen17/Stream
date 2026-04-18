@@ -1680,7 +1680,72 @@ function clearStageCards() {
   stageCards[0]=null; stageCards[1]=null;
 }
 
+function playCustomClash(vidUrl, result, c0key, c1key) {
+  const c0 = CARDS[c0key] || {color:'#fff', name:c0key};
+  const c1 = CARDS[c1key] || {color:'#fff', name:c1key};
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+
+  const vid = document.createElement('video');
+  vid.src = vidUrl;
+  vid.autoplay = true;
+  vid.playsInline = true;
+  vid.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+  overlay.appendChild(vid);
+
+  // Result text overlay
+  const rtEl = document.createElement('div');
+  rtEl.style.cssText = "position:absolute;left:50%;top:36%;transform:translate(-50%,-50%) scale(0);font-family:'Black Ops One',sans-serif;font-size:clamp(24px,7vw,60px);text-align:center;z-index:35;opacity:0;pointer-events:none;letter-spacing:3px;";
+  overlay.appendChild(rtEl);
+
+  document.body.appendChild(overlay);
+
+  // Play video
+  vid.play().catch(()=>{});
+
+  // Show result when video ends or after 8 seconds
+  const showResult = () => {
+    const winEl = result.winner===0 ? c0 : result.winner===1 ? c1 : null;
+    if (winEl) {
+      rtEl.textContent = winEl.name + ' WINS!';
+      rtEl.style.color = winEl.color;
+      rtEl.style.textShadow = '0 0 30px ' + winEl.color + ',0 0 60px ' + winEl.color;
+    } else {
+      rtEl.textContent = 'DRAW!'; rtEl.style.color = '#aaa';
+    }
+    rtEl.style.transition = 'none'; rtEl.style.opacity = '1';
+    rtEl.style.transform = 'translate(-50%,-50%) scale(3)';
+    setTimeout(() => {
+      rtEl.style.transition = 'transform .4s cubic-bezier(.15,1.4,.4,1)';
+      rtEl.style.transform = 'translate(-50%,-50%) scale(1)';
+    }, 20);
+    // Close overlay after 3 more seconds
+    setTimeout(() => {
+      overlay.style.transition = 'opacity .8s'; overlay.style.opacity = '0';
+      setTimeout(() => overlay.parentNode && overlay.parentNode.removeChild(overlay), 800);
+    }, 3000);
+  };
+
+  vid.onended = showResult;
+  setTimeout(showResult, 12000); // fallback if video is long
+}
+
+// Custom clash videos for specific matchups
+const CLASH_VIDEOS = {
+  'fire-ice': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4',
+  'ice-fire': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4',
+};
+
 function animateClash(result, c0key, c1key) {
+  // Check for custom clash video
+  const clashKey = c0key + '-' + c1key;
+  const customVid = CLASH_VIDEOS[clashKey];
+  if (customVid) {
+    playCustomClash(customVid, result, c0key, c1key);
+    return;
+  }
+
   const c0 = CARDS[c0key] || {color:'#fff',name:c0key,img:'',vid:''};
   const c1 = CARDS[c1key] || {color:'#fff',name:c1key,img:'',vid:''};
   const overlay = document.createElement('div');
