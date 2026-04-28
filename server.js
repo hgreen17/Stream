@@ -11,6 +11,11 @@ const express = require('express');
 const expressApp = express();
 expressApp.use(express.static(path.join(__dirname)));
 expressApp.get('/', (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
+expressApp.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
+expressApp.get('/sw.js', (req, res) => {
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.sendFile(path.join(__dirname, 'sw.js'));
+});
 
 // GoDaddy handles SSL — use plain http
 const http = require('http');
@@ -53,13 +58,13 @@ function broadcastStreamers() { broadcast({ type: 'streamer_list', streamers: ge
 const ELEMENTS = ['fire','ice','lightning','rock','wind','rubber','plant'];
 
 const BEATS = {
-  fire:      ['ice','plant','wind'],
-  ice:       ['rock','wind','lightning'],
-  lightning: ['fire','wind','plant'],
-  rock:      ['fire','rubber','plant'],
-  wind:      ['rock','rubber','ice'],
-  rubber:    ['lightning','fire','wind'],
-  plant:     ['rock','ice','rubber'],
+  fire:      ['ice', 'plant', 'wind'],
+  ice:      ['rock', 'lightning', 'wind'],
+  lightning:      ['fire', 'plant', 'rock'],
+  rock:      ['fire', 'wind', 'rubber'],
+  wind:      ['lightning', 'rubber', 'plant'],
+  rubber:      ['lightning', 'fire', 'ice'],
+  plant:      ['rock', 'ice', 'rubber'],
 };
 
 function dealHand() {
@@ -299,6 +304,22 @@ wss.on('connection',(ws)=>{
         notifyAll(battle,{type:'gift_announce',gift,viewerName,targetSeat,targetName:battle.names[targetSeat]});
       }
     }
+    else if (msg.type==='clash_ready') {
+      // Both players must signal ready before clash starts
+      const battle = [...battles.values()].find(b => b.players.includes(id));
+      if (!battle) return;
+      battle.clashReady = battle.clashReady || new Set();
+      battle.clashReady.add(id);
+      if (battle.clashReady.size >= 2) {
+        // Both ready — fire clash_start to both players simultaneously
+        battle.clashReady = new Set();
+        battle.players.forEach(pid => {
+          const c = clients.get(pid);
+          if (c) send(c.ws, { type: 'clash_start' });
+        });
+      }
+    }
+
     else if (msg.type==='rematch') {
       const battle=battles.get(client.battleId); if(!battle||battle.phase!=='gameover') return;
       const rmHands=[dealHand(),dealHand()];
