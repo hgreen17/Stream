@@ -1098,36 +1098,42 @@ function handleRoundResult(m) {
     }, 7500);
   }
 
-  // Update stats
-  if (m.hp) {
-    const cfg = battleState.config || battleConfig;
-    if (cfg && cfg.mode === 'hp') {
-      [0,1].forEach(i => {
-        const seat = i === 0 ? mySeat : 1-mySeat;
-        const pct = Math.max(0, (m.hp[seat] || 0) / cfg.value * 100);
-        $('hp-bar'+i).style.width = pct + '%';
-        $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
-        $('hp-text'+i).textContent = m.hp[seat] + ' HP';
-      });
+  // Delay all stat updates until after clash animation completes (~10s)
+  const clashDuration = 10000;
+  setTimeout(() => {
+    // Update HP bars
+    if (m.hp) {
+      const cfg = battleState.config || battleConfig;
+      if (cfg && cfg.mode === 'hp') {
+        [0,1].forEach(i => {
+          const seat = i === 0 ? mySeat : 1-mySeat;
+          const pct = Math.max(0, (m.hp[seat] || 0) / cfg.value * 100);
+          $('hp-bar'+i).style.width = pct + '%';
+          $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
+          $('hp-text'+i).textContent = m.hp[seat] + ' HP';
+        });
+      }
     }
-  }
-  const sc = m.scores || m.wins;
-  if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
+    // Update score
+    const sc = m.scores || m.wins;
+    if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
 
-  addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
+    // Battle log
+    addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
 
-  // Check for match over
-  if (m.matchWinner >= 0) {
-    battleState.phase = 'gameover';
-    setTimeout(() => {
-      clearStageCards();
-      handleMatchOver(m);
-    }, 2500);
-    return;
-  }
+    // Check for match over
+    if (m.matchWinner >= 0) {
+      battleState.phase = 'gameover';
+      setTimeout(() => {
+        clearStageCards();
+        handleMatchOver(m);
+      }, 2500);
+      return;
+    }
+  }, clashDuration);
 
-  // Clear stage quickly after clash, hand reset comes from server new_round message
-  setTimeout(clearStageCards, 1800);
+  // Clear stage after clash
+  setTimeout(clearStageCards, clashDuration + 500);
 }
 
 function handleMatchOver(m) {
@@ -1699,8 +1705,14 @@ function startClashPlayback() {
   const { vid } = pendingClashData;
   pendingClashData = null;
   vid.currentTime = 0;
-  // Small delay to let seek complete before playing
-  setTimeout(() => vid.play().catch(() => {}), 80);
+  vid.onseeked = () => {
+    vid.onseeked = null;
+    vid.play().catch(() => {});
+  };
+  // Fallback if onseeked doesn't fire
+  setTimeout(() => {
+    if (vid.paused) vid.play().catch(() => {});
+  }, 200);
 }
 
 function refreshClashVideos() {
@@ -1745,19 +1757,17 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
     }, 8000);
   };
 
-  const checkReady = () => {
-    // readyState 4 = HAVE_ENOUGH_DATA — fully buffered
-    if (vid.readyState >= 4) {
+  // Check if video is ready, with a short timeout fallback
+  if (vid.readyState >= 2) {
+    signalReady();
+  } else {
+    const readyTimeout = setTimeout(signalReady, 3000); // max 3s wait
+    vid.addEventListener('canplay', () => {
+      clearTimeout(readyTimeout);
       signalReady();
-    } else {
-      vid.addEventListener('canplaythrough', () => {
-        // Extra 500ms buffer after canplaythrough for safety
-        setTimeout(signalReady, 500);
-      }, { once: true });
-      vid.load();
-    }
-  };
-  checkReady();
+    }, { once: true });
+    vid.load();
+  }
 
   // Show result when video ends or after 8 seconds
   const showResult = () => {
@@ -1791,30 +1801,48 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
 
 // Custom clash videos for specific matchups
 const CLASH_VIDEOS = {
-  'fire-ice': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4',
-  'ice-fire': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4',
-  'ice-rock': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4',
-  'rock-ice': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4',
-  'wind-lightning': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4',
-  'lightning-wind': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4',
-  'fire-plant': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4',
-  'plant-fire': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4',
-  'rubber-lightning': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4',
-  'lightning-rubber': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4',
-  'fire-wind': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4',
-  'wind-fire': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4',
-  'plant-rock': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4',
-  'rock-plant': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4',
-  'rock-fire': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4',
-  'fire-rock': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4',
-  'wind-plant': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4',
-  'plant-wind': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4',
-  'ice-rubber': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
-  'rubber-ice': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
-  'ice-rubber': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
-  'rubber-ice': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
-  'rubber-ice': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
-  'ice-rubber': 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
+  'fire-ice':             'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4',
+  'ice-fire':             'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4',
+  'ice-rock':             'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4',
+  'rock-ice':             'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4',
+  'wind-lightning':       'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4',
+  'lightning-wind':       'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4',
+  'fire-plant':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4',
+  'plant-fire':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4',
+  'rubber-lightning':     'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4',
+  'lightning-rubber':     'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4',
+  'fire-wind':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4',
+  'wind-fire':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4',
+  'plant-rock':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4',
+  'rock-plant':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4',
+  'rock-fire':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4',
+  'fire-rock':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4',
+  'wind-plant':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4',
+  'plant-wind':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4',
+  'ice-rubber':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
+  'rubber-ice':           'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4',
+  'plant-rubber':         'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rubber.mp4',
+  'rubber-plant':         'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rubber.mp4',
+  'wind-rubber':          'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-rubber.mp4',
+  'rubber-wind':          'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-rubber.mp4',
+  'rock-rubber':          'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-rubber.mp4',
+  'rubber-rock':          'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-rubber.mp4',
+  'rock-wind':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-female-wind.mp4',
+  'wind-rock':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-female-wind.mp4',
+  'lightning-plant':      'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-plant.mp4',
+  'plant-lightning':      'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-plant.mp4',
+  'lightning-rock':       'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-rock.mp4',
+  'rock-lightning':       'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-rock.mp4',
+  'ice-wind':             'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-female-wind.mp4',
+  'wind-ice':             'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-female-wind.mp4',
+  'plant-ice':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-ice.mp4',
+  'ice-plant':            'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-ice.mp4',
+  'lightning-fire':       'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-fire.mp4',
+  'fire-lightning':       'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-fire.mp4',
+  'fire-rubber':          'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-fire.mp4',
+  'rubber-fire':          'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-fire.mp4',
+  'ice-lightning':        'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-lightning.mp4',
+  'lightning-ice':        'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-lightning.mp4',
 };
 
 function animateClash(result, c0key, c1key) {
@@ -2050,14 +2078,16 @@ async function handleIce(m) {
 
 // ── WARM UP VIDEO DECODERS ───────────────────────────────────────
 function warmUpVideos() {
-  document.querySelectorAll('[id^="pre-clash-"]').forEach(v => {
-    v.muted = true;
-    v.play().then(() => {
-      setTimeout(() => {
-        v.pause();
-        v.currentTime = 0;
-      }, 200);
-    }).catch(() => {});
+  const videos = Array.from(document.querySelectorAll('[id^="pre-clash-"], [id^="pre-fire"], [id^="pre-ice"], [id^="pre-lightning"], [id^="pre-rock"], [id^="pre-wind"], [id^="pre-rubber"], [id^="pre-plant"]'));
+  // Stagger warmup to avoid overwhelming mobile network
+  videos.forEach((v, i) => {
+    setTimeout(() => {
+      v.muted = true;
+      v.load();
+      v.play().then(() => {
+        setTimeout(() => { v.pause(); v.currentTime = 0; }, 150);
+      }).catch(() => {});
+    }, i * 100); // 100ms between each
   });
 }
 document.addEventListener('click', warmUpVideos, { once: true });
@@ -2090,6 +2120,17 @@ if ('serviceWorker' in navigator) {
   <video id="pre-clash-rock-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4" playsinline preload="auto"></video>
   <video id="pre-clash-wind-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4" playsinline preload="auto"></video>
   <video id="pre-clash-ice-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-plant-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rubber.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-wind-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-rubber.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-rock-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-rubber.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-rock-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-female-wind.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-lightning-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-plant.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-lightning-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-rock.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-ice-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-female-wind.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-plant-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-ice.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-lightning-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-fire.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-fire-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-fire.mp4" playsinline preload="auto"></video>
+  <video id="pre-clash-ice-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-lightning.mp4" playsinline preload="auto"></video>
 
 
 
