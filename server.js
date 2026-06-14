@@ -137,20 +137,28 @@ function resolveRound(battle) {
   }
 
   if (matchWinner<0) {
-    setTimeout(()=>{
-      battle.phase='picking'; battle.choices=[null,null]; battle.locked=[false,false]; battle.round++;
-      battle.players.forEach((pid,seat)=>{
-        const pool=[...ELEMENTS].sort(()=>Math.random()-.5);
-        const newCards=pool.filter(e=>!battle.hands[seat].includes(e)).slice(0,2);
-        if(newCards.length<2) newCards.push(...pool.slice(0,2-newCards.length));
-        battle.hands[seat].push(...newCards);
-        send(clients.get(pid)?.ws,{type:'new_round',round:battle.round,hand:battle.hands[seat],scores:battle.scores,hp:battle.hp});
-      });
-      notifyAll(battle,{type:'round_start',round:battle.round,scores:battle.scores,hp:battle.hp});
-    },4500);
+    // Wait for both players to signal clash_done before advancing
+    battle.clashDone = new Set();
+    // Safety net: advance after 18s regardless
+    battle.clashDoneTimeout = setTimeout(() => advanceRound(battle), 20000);
   }
 }
 
+
+function advanceRound(battle) {
+  if (battle.phase !== 'revealing') return; // already advanced or game over
+  if (battle.clashDoneTimeout) { clearTimeout(battle.clashDoneTimeout); battle.clashDoneTimeout = null; }
+  battle.clashDone = new Set();
+  battle.phase = 'picking'; battle.choices = [null,null]; battle.locked = [false,false]; battle.round++;
+  battle.players.forEach((pid,seat) => {
+    const pool = [...ELEMENTS].sort(()=>Math.random()-.5);
+    const newCards = pool.filter(e=>!battle.hands[seat].includes(e)).slice(0,2);
+    if (newCards.length<2) newCards.push(...pool.slice(0,2-newCards.length));
+    battle.hands[seat].push(...newCards);
+    send(clients.get(pid)?.ws, {type:'new_round', round:battle.round, hand:battle.hands[seat], scores:battle.scores, hp:battle.hp});
+  });
+  notifyAll(battle, {type:'round_start', round:battle.round, scores:battle.scores, hp:battle.hp});
+}
 
 wss.on('connection',(ws)=>{
   const id=nextId++;
@@ -313,8 +321,14 @@ wss.on('connection',(ws)=>{
         notifyAll(battle,{type:'gift_announce',gift,viewerName,targetSeat,targetName:battle.names[targetSeat]});
       }
     }
-    else if (msg.type==='clash_ready') {
-      // No-op: clash_start is now fired immediately when both cards lock in
+    else if (msg.type==='clash_done') {
+      const battle = battles.get(client.battleId);
+      if (!battle || battle.phase !== 'revealing') return;
+      battle.clashDone = battle.clashDone || new Set();
+      battle.clashDone.add(id);
+      if (battle.clashDone.size >= battle.players.length) {
+        advanceRound(battle);
+      }
     }
 
     else if (msg.type==='rematch') {
