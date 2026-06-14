@@ -1736,15 +1736,25 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
-  const vid = document.createElement('video');
-  vid.src = vidUrl;
+  // Reuse the preloaded video element so it's already buffered — avoids race condition on mobile
+  const preId = 'pre-clash-' + c0key + '-' + c1key;
+  const altId = 'pre-clash-' + c1key + '-' + c0key;
+  const preloaded = document.getElementById(preId) || document.getElementById(altId);
+
+  let vid;
+  if (preloaded && preloaded.readyState >= 2) {
+    vid = preloaded.cloneNode(true);
+  } else {
+    vid = document.createElement('video');
+    vid.src = vidUrl;
+    vid.preload = 'auto';
+  }
   vid.autoplay = false;
   vid.muted = true;
   vid.playsInline = true;
   vid.setAttribute('playsinline', '');
   vid.setAttribute('muted', '');
   vid.setAttribute('webkit-playsinline', '');
-  vid.preload = 'auto';
   vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
   overlay.appendChild(vid);
 
