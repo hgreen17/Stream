@@ -272,7 +272,16 @@ wss.on('connection',(ws)=>{
       if (idx!==-1) battle.hands[seat].splice(idx,1);
       battle.choices[seat]=card; battle.locked[seat]=true;
       notifyAll(battle,{type:'player_locked',seat,name:battle.names[seat]});
-      if (battle.locked[0]&&battle.locked[1]) { battle.phase='revealing'; setTimeout(()=>resolveRound(battle),800); }
+      if (battle.locked[0]&&battle.locked[1]) {
+        battle.phase='revealing';
+        // Fire clash_start immediately to both players so animations are in sync
+        battle.players.forEach(pid => {
+          const c = clients.get(pid);
+          if (c) send(c.ws, { type: 'clash_start' });
+        });
+        // Delay round_result until after clash animation (~12s)
+        setTimeout(()=>resolveRound(battle), 12500);
+      }
     }
     else if (msg.type==='gift') {
       const gift=GIFTS[msg.giftId]; if(!gift) return;
@@ -305,19 +314,7 @@ wss.on('connection',(ws)=>{
       }
     }
     else if (msg.type==='clash_ready') {
-      // Both players must signal ready before clash starts
-      const battle = [...battles.values()].find(b => b.players.includes(id));
-      if (!battle) return;
-      battle.clashReady = battle.clashReady || new Set();
-      battle.clashReady.add(id);
-      if (battle.clashReady.size >= 2) {
-        // Both ready — fire clash_start to both players simultaneously
-        battle.clashReady = new Set();
-        battle.players.forEach(pid => {
-          const c = clients.get(pid);
-          if (c) send(c.ws, { type: 'clash_start' });
-        });
-      }
+      // No-op: clash_start is now fired immediately when both cards lock in
     }
 
     else if (msg.type==='rematch') {

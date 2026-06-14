@@ -490,12 +490,9 @@ function selRole(r) {
 
 function doLogin() {
   const name = $('ln-name').value.trim();
-  const pin  = $('ln-pin').value.trim();
   if (!name) { $('ln-err').textContent = 'Enter a username'; return; }
-  if (pin.length < 4) { $('ln-err').textContent = 'PIN must be 4 digits'; return; }
   // Save to localStorage
   localStorage.setItem('sb_name', name);
-  localStorage.setItem('sb_pin', pin);
   myName = name; myRole = selectedRole;
   $('ln-err').textContent = '';
   connectWS();
@@ -515,7 +512,7 @@ window.addEventListener('load', () => {
 function connectWS() {
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('192.168.');
   const url = isLocal
-    ? 'wss://' + location.hostname + ':' + location.port
+    ? 'ws://' + location.hostname + ':' + location.port
     : 'wss://' + location.hostname;
   try { ws = new WebSocket(url); } catch(e) { $('ln-err').textContent = 'Cannot connect to server'; return; }
   ws.onopen = () => {
@@ -619,7 +616,56 @@ function handle(m) {
       break;
 
     case 'clash_start':
-      startClashPlayback();
+      if (pendingClashData) {
+        startClashPlayback();
+      } else if (pendingRoundResult) {
+        // round_result arrived before clash_start — kick off animation now
+        const m = pendingRoundResult;
+        const myServerCard = m.choices?.[mySeat];
+        const oppServerCard = m.choices?.[1-mySeat];
+        const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
+        setTimeout(() => animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard), 300);
+      }
+      // Schedule all post-clash stat updates (12s matches server's clash duration)
+      if (pendingRoundResult) {
+        const m = pendingRoundResult;
+        pendingRoundResult = null;
+        const clashDuration = 12000;
+        // HP damage numbers at ~7s
+        if (m.dmg) {
+          setTimeout(() => {
+            if (m.dmg[0] > 0) showDamage(0, m.dmg[0]);
+            if (m.dmg[1] > 0) showDamage(1, m.dmg[1]);
+          }, 7500);
+        }
+        setTimeout(() => {
+          // Update HP bars
+          if (m.hp) {
+            const cfg = battleState.config || battleConfig;
+            if (cfg && cfg.mode === 'hp') {
+              [0,1].forEach(i => {
+                const seat = i === 0 ? mySeat : 1-mySeat;
+                const pct = Math.max(0, (m.hp[seat] || 0) / cfg.value * 100);
+                $('hp-bar'+i).style.width = pct + '%';
+                $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
+                $('hp-text'+i).textContent = m.hp[seat] + ' HP';
+              });
+            }
+          }
+          // Update score
+          const sc = m.scores || m.wins;
+          if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
+          // Battle log
+          addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
+          // Check for match over
+          if (m.matchWinner >= 0) {
+            battleState.phase = 'gameover';
+            setTimeout(() => { clearStageCards(); handleMatchOver(m); }, 2500);
+            return;
+          }
+        }, clashDuration);
+        setTimeout(clearStageCards, clashDuration + 500);
+      }
       break;
 
     case 'round_result':
@@ -1083,57 +1129,8 @@ function handleRoundResult(m) {
   showCardOnStage(0, myInfo);   // me always left
   showCardOnStage(1, oppInfo);  // opponent always right
 
-  // Animate clash after short delay
-  setTimeout(() => {
-    // Map server winner seat to visual: my card=left(0), opp card=right(1)
-    const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
-    animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
-  }, 600);
-
-  // HP damage numbers — show after clash impact (at ~7s)
-  if (m.dmg) {
-    setTimeout(() => {
-      if (m.dmg[0] > 0) showDamage(0, m.dmg[0]);
-      if (m.dmg[1] > 0) showDamage(1, m.dmg[1]);
-    }, 7500);
-  }
-
-  // Delay all stat updates until after clash animation completes (~10s)
-  const clashDuration = 10000;
-  setTimeout(() => {
-    // Update HP bars
-    if (m.hp) {
-      const cfg = battleState.config || battleConfig;
-      if (cfg && cfg.mode === 'hp') {
-        [0,1].forEach(i => {
-          const seat = i === 0 ? mySeat : 1-mySeat;
-          const pct = Math.max(0, (m.hp[seat] || 0) / cfg.value * 100);
-          $('hp-bar'+i).style.width = pct + '%';
-          $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
-          $('hp-text'+i).textContent = m.hp[seat] + ' HP';
-        });
-      }
-    }
-    // Update score
-    const sc = m.scores || m.wins;
-    if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
-
-    // Battle log
-    addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
-
-    // Check for match over
-    if (m.matchWinner >= 0) {
-      battleState.phase = 'gameover';
-      setTimeout(() => {
-        clearStageCards();
-        handleMatchOver(m);
-      }, 2500);
-      return;
-    }
-  }, clashDuration);
-
-  // Clear stage after clash
-  setTimeout(clearStageCards, clashDuration + 500);
+  // Store result so clash_start can trigger the animation
+  pendingRoundResult = m;
 }
 
 function handleMatchOver(m) {
@@ -1699,20 +1696,28 @@ function clearStageCards() {
 }
 
 let pendingClashData = null;
+let pendingRoundResult = null;
 
 function startClashPlayback() {
   if (!pendingClashData) return;
   const { vid } = pendingClashData;
   pendingClashData = null;
+  vid.muted = true;
   vid.currentTime = 0;
-  vid.onseeked = () => {
-    vid.onseeked = null;
-    vid.play().catch(() => {});
+  // On mobile, skip the onseeked dance and just play directly
+  const tryPlay = () => {
+    const p = vid.play();
+    if (p && p.catch) p.catch(() => {
+      // Last resort: force src reload then play
+      const src = vid.src;
+      vid.src = '';
+      vid.src = src;
+      vid.play().catch(() => {});
+    });
   };
-  // Fallback if onseeked doesn't fire
-  setTimeout(() => {
-    if (vid.paused) vid.play().catch(() => {});
-  }, 200);
+  vid.onseeked = () => { vid.onseeked = null; tryPlay(); };
+  // Fallback if onseeked doesn't fire (common on iOS)
+  setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
 }
 
 function refreshClashVideos() {
@@ -1734,9 +1739,13 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const vid = document.createElement('video');
   vid.src = vidUrl;
   vid.autoplay = false;
+  vid.muted = true;
   vid.playsInline = true;
+  vid.setAttribute('playsinline', '');
+  vid.setAttribute('muted', '');
+  vid.setAttribute('webkit-playsinline', '');
   vid.preload = 'auto';
-  vid.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+  vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
   overlay.appendChild(vid);
 
   // Result text overlay
@@ -1750,11 +1759,11 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   pendingClashData = { vid, overlay, result, c0, c1 };
 
   const signalReady = () => {
-    wsSend({ type: 'clash_ready', clashKey: c0key + '-' + c1key });
-    // Fallback: if no clash_start received within 8s, start anyway
+    // clash_start now fires from server immediately; this is a local fallback only
+    // if clash_start somehow never arrives within 10s
     setTimeout(() => {
       if (pendingClashData) startClashPlayback();
-    }, 8000);
+    }, 10000);
   };
 
   // Check if video is ready, with a short timeout fallback
@@ -2110,27 +2119,27 @@ if ('serviceWorker' in navigator) {
   <video id="pre-wind"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/female-wind.mp4"      muted loop playsinline preload="auto"></video>
   <video id="pre-rubber"    src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rubber.mp4"    muted loop playsinline preload="auto"></video>
   <video id="pre-plant"     src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/plant.mp4"     muted loop playsinline preload="auto"></video>
-  <video id="pre-clash-fire-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-ice-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-wind-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-fire-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-rubber-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-fire-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-plant-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-rock-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-wind-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-ice-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-plant-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rubber.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-wind-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-rubber.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-rock-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-rubber.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-rock-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-female-wind.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-lightning-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-plant.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-lightning-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-rock.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-ice-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-female-wind.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-plant-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-ice.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-lightning-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-fire.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-fire-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-fire.mp4" playsinline preload="auto"></video>
-  <video id="pre-clash-ice-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-lightning.mp4" playsinline preload="auto"></video>
+  <video muted id="pre-clash-fire-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-ice-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-wind-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-fire-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-rubber-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-fire-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-plant-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-rock-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-wind-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-ice-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-plant-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-wind-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-rock-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-rock-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-female-wind.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-lightning-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-plant.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-lightning-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-rock.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-ice-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-female-wind.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-plant-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-ice.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-lightning-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-fire.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-fire-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-fire.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <video muted id="pre-clash-ice-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-lightning.mp4" playsinline webkit-playsinline preload="auto"></video>
 
 
 
