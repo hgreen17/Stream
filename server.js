@@ -137,10 +137,20 @@ function resolveRound(battle) {
   }
 
   if (matchWinner<0) {
-    // Wait for both players to signal clash_done before advancing
+    // Wait for both clients to send clash_ready, then fire clash_start to sync playback
+    battle.clashReady = new Set();
     battle.clashDone = new Set();
-    // Safety net: advance after 18s regardless
-    battle.clashDoneTimeout = setTimeout(() => advanceRound(battle), 20000);
+    // Safety net: fire clash_start after 5s even if a client never signals ready
+    battle.clashReadyTimeout = setTimeout(() => {
+      if (battle.clashReady && battle.clashReady.size < battle.players.length) {
+        battle.players.forEach(pid => {
+          const c = clients.get(pid);
+          if (c) send(c.ws, { type: 'clash_start' });
+        });
+      }
+    }, 5000);
+    // Safety net: advance round after 25s regardless
+    battle.clashDoneTimeout = setTimeout(() => advanceRound(battle), 25000);
   }
 }
 
@@ -282,13 +292,9 @@ wss.on('connection',(ws)=>{
       notifyAll(battle,{type:'player_locked',seat,name:battle.names[seat]});
       if (battle.locked[0]&&battle.locked[1]) {
         battle.phase='revealing';
-        // Fire clash_start immediately to both players so animations are in sync
-        battle.players.forEach(pid => {
-          const c = clients.get(pid);
-          if (c) send(c.ws, { type: 'clash_start' });
-        });
-        // Delay round_result until after clash animation (~12s)
-        setTimeout(()=>resolveRound(battle), 12500);
+        // Send round_result immediately so clients can set up the clash animation
+        // Then wait for both clients to signal clash_ready before firing clash_start
+        resolveRound(battle);
       }
     }
     else if (msg.type==='gift') {
@@ -319,6 +325,20 @@ wss.on('connection',(ws)=>{
         battle.hands[targetSeat].push(gift.card);
         send(clients.get(battle.players[targetSeat])?.ws,{type:'gift_card',card:gift.card,gift,viewerName});
         notifyAll(battle,{type:'gift_announce',gift,viewerName,targetSeat,targetName:battle.names[targetSeat]});
+      }
+    }
+    else if (msg.type==='clash_ready') {
+      const battle = battles.get(client.battleId);
+      if (!battle || battle.phase !== 'revealing') return;
+      battle.clashReady = battle.clashReady || new Set();
+      battle.clashReady.add(id);
+      if (battle.clashReady.size >= battle.players.length) {
+        // Both players ready — fire clash_start to sync playback
+        if (battle.clashReadyTimeout) clearTimeout(battle.clashReadyTimeout);
+        battle.players.forEach(pid => {
+          const c = clients.get(pid);
+          if (c) send(c.ws, { type: 'clash_start' });
+        });
       }
     }
     else if (msg.type==='clash_done') {

@@ -665,48 +665,39 @@ function handle(m) {
       break;
 
     case 'clash_start':
-      if (pendingRoundResult) {
-        // Trigger animation immediately — no delay so pendingClashData is set before startClashPlayback
-        const m = pendingRoundResult;
-        const myServerCard = m.choices?.[mySeat];
-        const oppServerCard = m.choices?.[1-mySeat];
-        const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
-        animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
-      }
-      // After animateClash runs synchronously, pendingClashData is now set — play it
+      // Both players ready — start synchronized playback
       if (pendingClashData) {
         startClashPlayback();
       }
-      // Show damage numbers and update score/HP locally mid-animation
+      // Fire mid-animation UI updates relative to this sync point
       if (pendingRoundResult) {
-        const m = pendingRoundResult;
+        const pr = pendingRoundResult;
         pendingRoundResult = null;
-        if (m.dmg) {
+        if (pr.dmg) {
           setTimeout(() => {
-            if (m.dmg[0] > 0) showDamage(0, m.dmg[0]);
-            if (m.dmg[1] > 0) showDamage(1, m.dmg[1]);
+            if (pr.dmg[0] > 0) showDamage(0, pr.dmg[0]);
+            if (pr.dmg[1] > 0) showDamage(1, pr.dmg[1]);
           }, 9000);
         }
-        // Update score and log after impact (~12s) — new_round from server clears the stage
         setTimeout(() => {
-          const sc = m.scores || m.wins;
+          const sc = pr.scores || pr.wins;
           if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
-          if (m.hp) {
+          if (pr.hp) {
             const cfg = battleState.config || battleConfig;
             if (cfg && cfg.mode === 'hp') {
               [0,1].forEach(i => {
                 const seat = i === 0 ? mySeat : 1-mySeat;
-                const pct = Math.max(0, (m.hp[seat] || 0) / cfg.value * 100);
+                const pct = Math.max(0, (pr.hp[seat] || 0) / cfg.value * 100);
                 $('hp-bar'+i).style.width = pct + '%';
                 $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
-                $('hp-text'+i).textContent = m.hp[seat] + ' HP';
+                $('hp-text'+i).textContent = pr.hp[seat] + ' HP';
               });
             }
           }
-          addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
-          if (m.matchWinner >= 0) {
+          addBattleLog(pr.reason, pr.winner === -1 ? '#aaa' : 'var(--gold)');
+          if (pr.matchWinner >= 0) {
             battleState.phase = 'gameover';
-            setTimeout(() => { clearStageCards(); handleMatchOver(m); }, 2500);
+            setTimeout(() => { clearStageCards(); handleMatchOver(pr); }, 2500);
           }
         }, 12000);
       }
@@ -1161,19 +1152,22 @@ function receiveGiftCard(m) {
 // ROUND RESULT + ANIME ANIMATION
 // ════════════════════════════════════════════════════════════════════
 function handleRoundResult(m) {
-  const c0 = {...(CARDS[m.choices?.[0]] || { icon:'?', name:'?', color:'#fff', effect:'paper' }), card:m.choices?.[0]};
-  const c1 = {...(CARDS[m.choices?.[1]] || { icon:'?', name:'?', color:'#fff', effect:'paper' }), card:m.choices?.[1]};
-
-  // Show both cards on stage — map server seat to visual position
   const myServerCard = m.choices?.[mySeat];
   const oppServerCard = m.choices?.[1-mySeat];
   const myInfo = {...(CARDS[myServerCard] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:myServerCard};
   const oppInfo = {...(CARDS[oppServerCard] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:oppServerCard};
-  showCardOnStage(0, myInfo);   // me always left
-  showCardOnStage(1, oppInfo);  // opponent always right
+  showCardOnStage(0, myInfo);
+  showCardOnStage(1, oppInfo);
 
-  // Store result so clash_start can trigger the animation
+  // Schedule damage/score UI updates to fire mid-animation (~9s and ~12s after clash_start)
   pendingRoundResult = m;
+
+  // Set up clash animation now — video blob is in memory so this is synchronous
+  const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
+  animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
+
+  // Tell server we're ready — server fires clash_start when both players signal
+  wsSend({ type: 'clash_ready' });
 }
 
 function handleMatchOver(m) {
