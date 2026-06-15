@@ -1733,19 +1733,29 @@ function clearStageCards() {
 }
 
 let pendingClashData = null;
+let pendingClashFallback = null; // cancellable fallback timer
 let pendingRoundResult = null;
 
 function startClashPlayback() {
   if (!pendingClashData) return;
-  const { vid } = pendingClashData;
+  // Cancel fallback timer — we're playing now
+  if (pendingClashFallback) { clearTimeout(pendingClashFallback); pendingClashFallback = null; }
+  const data = pendingClashData;
   pendingClashData = null;
+
+  if (data.playAll) {
+    // Elemental clash — play all creature videos
+    data.playAll();
+    return;
+  }
+
+  // Custom clash — single fullscreen video
+  const vid = data.vid;
   vid.muted = false;
   vid.currentTime = 0;
-  // On mobile, skip the onseeked dance and just play directly
   const tryPlay = () => {
     const p = vid.play();
     if (p && p.catch) p.catch(() => {
-      // Last resort: force src reload then play
       const src = vid.src;
       vid.src = '';
       vid.src = src;
@@ -1753,7 +1763,6 @@ function startClashPlayback() {
     });
   };
   vid.onseeked = () => { vid.onseeked = null; tryPlay(); };
-  // Fallback if onseeked doesn't fire (common on iOS)
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
 }
 
@@ -1786,13 +1795,14 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   document.body.appendChild(overlay);
 
   // Set pendingClashData — startClashPlayback() is called by clash_start handler
-  // Since video is a blob URL already in memory, it's ready immediately
   pendingClashData = { vid, overlay, result, c0, c1 };
 
-  // Fallback: if clash_start somehow never arrives, play after 3s
-  setTimeout(() => {
+  // Fallback: if clash_start never arrives within 8s, play anyway
+  if (pendingClashFallback) clearTimeout(pendingClashFallback);
+  pendingClashFallback = setTimeout(() => {
+    pendingClashFallback = null;
     if (pendingClashData) startClashPlayback();
-  }, 3000);
+  }, 8000);
 
   // Show result when video ends or after 8 seconds
   const showResult = () => {
@@ -1934,16 +1944,31 @@ function animateClash(result, c0key, c1key) {
   overlay.appendChild(rtEl);
   document.body.appendChild(overlay);
 
-  // Use preloaded blob URLs for instant playback
-  ['left','right'].forEach((side, i) => {
-    const card = i === 0 ? c0 : c1;
-    const key = i === 0 ? c0key : c1key;
-    const vid = overlay.querySelector('#clash-vid-'+side);
-    if (!vid) return;
-    vid.src = videoCache[key] || card.vid;
-    vid.currentTime = 0;
-    vid.play().catch(() => {});
-  });
+  // Store in pendingClashData so clash_start triggers synchronized playback
+  // Pass a play function instead of a single vid element
+  pendingClashData = {
+    overlay,
+    result,
+    c0, c1,
+    playAll: () => {
+      ['left','right'].forEach((side, i) => {
+        const card = i === 0 ? c0 : c1;
+        const key = i === 0 ? c0key : c1key;
+        const vid = overlay.querySelector('#clash-vid-'+side);
+        if (!vid) return;
+        vid.src = videoCache[key] || card.vid;
+        vid.currentTime = 0;
+        vid.play().catch(() => {});
+      });
+    }
+  };
+
+  // Fallback: play after 8s if clash_start never arrives
+  if (pendingClashFallback) clearTimeout(pendingClashFallback);
+  pendingClashFallback = setTimeout(() => {
+    pendingClashFallback = null;
+    if (pendingClashData) startClashPlayback();
+  }, 8000);
 
   let fxParts=[],fxOn=true;
   const cx=window.innerWidth/2, cy=window.innerHeight*.45;
