@@ -665,14 +665,17 @@ function handle(m) {
       break;
 
     case 'clash_start':
-      if (pendingClashData) {
-        startClashPlayback();
-      } else if (pendingRoundResult) {
+      if (pendingRoundResult) {
+        // Trigger animation immediately — no delay so pendingClashData is set before startClashPlayback
         const m = pendingRoundResult;
         const myServerCard = m.choices?.[mySeat];
         const oppServerCard = m.choices?.[1-mySeat];
         const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
-        setTimeout(() => animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard), 300);
+        animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
+      }
+      // After animateClash runs synchronously, pendingClashData is now set — play it
+      if (pendingClashData) {
+        startClashPlayback();
       }
       // Show damage numbers and update score/HP locally mid-animation
       if (pendingRoundResult) {
@@ -1789,28 +1792,14 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
 
   document.body.appendChild(overlay);
 
-  // Wait for enough data then signal ready to server
+  // Set pendingClashData — startClashPlayback() is called by clash_start handler
+  // Since video is a blob URL already in memory, it's ready immediately
   pendingClashData = { vid, overlay, result, c0, c1 };
 
-  const signalReady = () => {
-    // clash_start now fires from server immediately; this is a local fallback only
-    // if clash_start somehow never arrives within 10s
-    setTimeout(() => {
-      if (pendingClashData) startClashPlayback();
-    }, 10000);
-  };
-
-  // Check if video is ready, with a short timeout fallback
-  if (vid.readyState >= 2) {
-    signalReady();
-  } else {
-    const readyTimeout = setTimeout(signalReady, 3000); // max 3s wait
-    vid.addEventListener('canplay', () => {
-      clearTimeout(readyTimeout);
-      signalReady();
-    }, { once: true });
-    vid.load();
-  }
+  // Fallback: if clash_start somehow never arrives, play after 3s
+  setTimeout(() => {
+    if (pendingClashData) startClashPlayback();
+  }, 3000);
 
   // Show result when video ends or after 8 seconds
   const showResult = () => {
