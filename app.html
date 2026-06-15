@@ -207,7 +207,17 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 <body>
 
 <!-- ═══ LOGIN SCREEN ═══════════════════════════════════════════════════════ -->
-<div id="screen-login" class="screen active">
+<div id="screen-preload" class="screen active" style="background:radial-gradient(ellipse at 50% 30%,#1a0a2e,var(--bg));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px">
+  <div class="logo">STREAM BATTLE</div>
+  <div class="logo-sub">loading arena assets</div>
+  <div style="width:280px;background:#ffffff18;border-radius:8px;overflow:hidden;height:14px;border:1px solid #ffffff30">
+    <div id="preload-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--purple),var(--teal));transition:width 0.2s ease;border-radius:8px"></div>
+  </div>
+  <div id="preload-pct" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--teal);letter-spacing:2px">0%</div>
+  <div id="preload-label" style="font-size:11px;color:#ffffff55;letter-spacing:1px">fetching videos...</div>
+</div>
+
+<div id="screen-login" class="screen">
   <div class="logo">STREAM BATTLE</div>
   <div class="logo-sub">live card arena</div>
   <div class="login-box">
@@ -413,21 +423,35 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 <script>
 // ════════════════════════════════════════════════════════════════════
 // ── VIDEO PRELOAD CACHE ──────────────────────────────────────────
+// ── VIDEO PRELOAD (blob URLs) ─────────────────────────────────────
+// videoCache[key] = blob URL string (e.g. "blob:https://...")
 const videoCache = {};
-const _preloadedVids = videoCache; // alias
-function preloadAllVideos() {
-  Object.entries(CARDS).forEach(([key, card]) => {
-    if (!card.vid || videoCache[key]) return;
-    const v = document.createElement('video');
-    v.src = card.vid;
-    v.muted = true;
-    v.playsInline = true;
-    v.preload = 'auto';
-    v.load();
-    // Play a tiny bit to fully unlock on desktop
-    v.play().then(() => { v.pause(); v.currentTime = 0; }).catch(() => {});
-    videoCache[key] = v;
-  });
+
+async function preloadAllVideos() {
+  const entries = Object.entries(CARDS).filter(([, c]) => c.vid);
+  const total = entries.length;
+  let done = 0;
+
+  const bar = document.getElementById('preload-bar');
+  const pct = document.getElementById('preload-pct');
+  const label = document.getElementById('preload-label');
+
+  await Promise.all(entries.map(async ([key, card]) => {
+    if (videoCache[key]) { done++; return; }
+    try {
+      const res = await fetch(card.vid);
+      const blob = await res.blob();
+      videoCache[key] = URL.createObjectURL(blob);
+    } catch(e) {
+      // fallback: use raw URL if fetch fails
+      videoCache[key] = card.vid;
+    }
+    done++;
+    const p = Math.round(done / total * 100);
+    if (bar) bar.style.width = p + '%';
+    if (pct) pct.textContent = p + '%';
+    if (label) label.textContent = card.name + ' loaded...';
+  }));
 }
 
 // ── VIDEO PRELOAD CACHE ──────────────────────────────────────────
@@ -499,11 +523,15 @@ function doLogin() {
 }
 
 // Pre-fill from localStorage
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   const n = localStorage.getItem('sb_name');
   const p = localStorage.getItem('sb_pin');
   if (n) $('ln-name').value = n;
   if (p) $('ln-pin').value = p;
+
+  // Preload all clash videos as blob URLs before showing login
+  await preloadAllVideos();
+  showScreen('screen-login');
 });
 
 // ════════════════════════════════════════════════════════════════════
@@ -932,7 +960,6 @@ function respondChallenge(accepted) {
 // BATTLE START
 // ════════════════════════════════════════════════════════════════════
 function startBattle(m) {
-  preloadAllVideos(); // preload all elemental videos
   showScreen('screen-battle');
   hasPlayed = false; selectedCard = null;
   // Set initial battle state so cards are enabled
@@ -1894,13 +1921,9 @@ function animateClash(result, c0key, c1key) {
     img.src = el.img;
     img.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;inset:0;z-index:1;';
     mediaWrap.appendChild(img);
-    // Use preloaded video if available, else create new
-    const preloaded = _preloadedVids[elKey];
-    let vid;
-    // Always create fresh video - browser cache ensures fast load
-    vid = document.createElement('video');
-    const preEl = document.getElementById('pre-'+elKey);
-    vid.src = preEl ? preEl.src : el.vid;
+    // Use blob URL from preloader — guaranteed in memory, no network fetch
+    let vid = document.createElement('video');
+    vid.src = videoCache[elKey] || el.vid;
     vid.muted=true; vid.loop=true; vid.playsInline=true;
     vid.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;inset:0;z-index:2;';
     mediaWrap.appendChild(vid);
@@ -1924,19 +1947,14 @@ function animateClash(result, c0key, c1key) {
   overlay.appendChild(rtEl);
   document.body.appendChild(overlay);
 
-  // Use preloaded videos for smooth playback
+  // Use preloaded blob URLs for instant playback
   ['left','right'].forEach((side, i) => {
     const card = i === 0 ? c0 : c1;
+    const key = i === 0 ? c0key : c1key;
     const vid = overlay.querySelector('#clash-vid-'+side);
     if (!vid) return;
-    const cached = videoCache[i === 0 ? c0key : c1key];
-    if (cached) {
-      // Clone the cached video's src
-      vid.src = card.vid;
-      vid.currentTime = 0;
-    } else {
-      vid.src = card.vid;
-    }
+    vid.src = videoCache[key] || card.vid;
+    vid.currentTime = 0;
     vid.play().catch(() => {});
   });
 
