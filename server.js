@@ -136,19 +136,22 @@ function resolveRound(battle) {
     send(c.ws,{type:'watch_round_result',round:battle.round,choices:battle.choices,winner,reason,scores:battle.scores,hp:battle.hp,dmg,matchWinner,matchWinnerName:matchWinner>=0?battle.names[matchWinner]:null});
   }
 
-  if (matchWinner<0) {
-    // Wait for both clients to send clash_ready, then fire clash_start to sync playback
-    battle.clashReady = new Set();
-    battle.clashDone = new Set();
-    // Safety net: fire clash_start after 5s even if a client never signals ready
-    battle.clashReadyTimeout = setTimeout(() => {
-      if (battle.clashReady && battle.clashReady.size < battle.players.length) {
-        battle.players.forEach(pid => {
-          const c = clients.get(pid);
-          if (c) send(c.ws, { type: 'clash_start' });
-        });
-      }
-    }, 5000);
+  // Always run clash animation — for both normal rounds and match-over
+  battle.clashReady = new Set();
+  battle.clashDone = new Set();
+  const isOver = matchWinner >= 0;
+
+  // Safety net: fire clash_start after 5s if a client never signals ready
+  battle.clashReadyTimeout = setTimeout(() => {
+    if (battle.clashReady && battle.clashReady.size < battle.players.length) {
+      battle.players.forEach(pid => {
+        const c = clients.get(pid);
+        if (c) send(c.ws, { type: 'clash_start', matchOver: isOver });
+      });
+    }
+  }, 5000);
+
+  if (!isOver) {
     // Safety net: advance round after 25s regardless
     battle.clashDoneTimeout = setTimeout(() => advanceRound(battle), 25000);
   }
@@ -329,20 +332,23 @@ wss.on('connection',(ws)=>{
     }
     else if (msg.type==='clash_ready') {
       const battle = battles.get(client.battleId);
-      if (!battle || battle.phase !== 'revealing') return;
+      // Allow both 'revealing' (normal round) and 'gameover' (final round) phases
+      if (!battle || (battle.phase !== 'revealing' && battle.phase !== 'gameover')) return;
       battle.clashReady = battle.clashReady || new Set();
       battle.clashReady.add(id);
       if (battle.clashReady.size >= battle.players.length) {
         // Both players ready — fire clash_start to sync playback
         if (battle.clashReadyTimeout) clearTimeout(battle.clashReadyTimeout);
+        const isOver = battle.phase === 'gameover';
         battle.players.forEach(pid => {
           const c = clients.get(pid);
-          if (c) send(c.ws, { type: 'clash_start' });
+          if (c) send(c.ws, { type: 'clash_start', matchOver: isOver });
         });
       }
     }
     else if (msg.type==='clash_done') {
       const battle = battles.get(client.battleId);
+      // Only advance round for non-final rounds
       if (!battle || battle.phase !== 'revealing') return;
       battle.clashDone = battle.clashDone || new Set();
       battle.clashDone.add(id);

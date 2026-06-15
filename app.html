@@ -1739,7 +1739,7 @@ function startClashPlayback() {
   if (!pendingClashData) return;
   const { vid } = pendingClashData;
   pendingClashData = null;
-  vid.muted = true;
+  vid.muted = false;
   vid.currentTime = 0;
   // On mobile, skip the onseeked dance and just play directly
   const tryPlay = () => {
@@ -1771,10 +1771,9 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   let vid = document.createElement('video');
   vid.src = blobUrl;
   vid.autoplay = false;
-  vid.muted = true;
+  vid.muted = false;
   vid.playsInline = true;
   vid.setAttribute('playsinline', '');
-  vid.setAttribute('muted', '');
   vid.setAttribute('webkit-playsinline', '');
   vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
   overlay.appendChild(vid);
@@ -1912,7 +1911,7 @@ function animateClash(result, c0key, c1key) {
     // Use blob URL from preloader — guaranteed in memory, no network fetch
     let vid = document.createElement('video');
     vid.src = videoCache[elKey] || el.vid;
-    vid.muted=true; vid.loop=true; vid.playsInline=true;
+    vid.muted=false; vid.loop=true; vid.playsInline=true;
     vid.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;inset:0;z-index:2;';
     mediaWrap.appendChild(vid);
     const nameEl = document.createElement('div');
