@@ -427,30 +427,51 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 // videoCache[key] = blob URL string (e.g. "blob:https://...")
 const videoCache = {};
 
-async function preloadAllVideos() {
-  const entries = Object.entries(CARDS).filter(([, c]) => c.vid);
-  const total = entries.length;
-  let done = 0;
+// clashBlobCache[url] = blob URL for CLASH_VIDEOS, deduplicated by actual URL
+const clashBlobCache = {};
 
-  const bar = document.getElementById('preload-bar');
-  const pct = document.getElementById('preload-pct');
+async function preloadAllVideos() {
+  const bar   = document.getElementById('preload-bar');
+  const pct   = document.getElementById('preload-pct');
   const label = document.getElementById('preload-label');
 
-  await Promise.all(entries.map(async ([key, card]) => {
-    if (videoCache[key]) { done++; return; }
-    try {
-      const res = await fetch(card.vid);
-      const blob = await res.blob();
-      videoCache[key] = URL.createObjectURL(blob);
-    } catch(e) {
-      // fallback: use raw URL if fetch fails
-      videoCache[key] = card.vid;
+  const tasks = [];
+
+  // 1) Per-card elemental videos
+  Object.entries(CARDS).forEach(([key, card]) => {
+    if (card.vid && !videoCache[key])
+      tasks.push({ cache: videoCache, key, url: card.vid, name: card.name });
+  });
+
+  // 2) Clash pair videos deduplicated by URL
+  const seenUrls = new Set();
+  Object.entries(CLASH_VIDEOS).forEach(([key, url]) => {
+    if (!clashBlobCache[url] && !seenUrls.has(url)) {
+      seenUrls.add(url);
+      tasks.push({ cache: clashBlobCache, key: url, url, name: 'clash ' + key });
     }
+  });
+
+  const total = tasks.length;
+  let done = 0;
+
+  const tick = (name) => {
     done++;
     const p = Math.round(done / total * 100);
-    if (bar) bar.style.width = p + '%';
-    if (pct) pct.textContent = p + '%';
-    if (label) label.textContent = card.name + ' loaded...';
+    if (bar)   bar.style.width = p + '%';
+    if (pct)   pct.textContent = p + '%';
+    if (label) label.textContent = name + '...';
+  };
+
+  await Promise.all(tasks.map(async ({ cache, key, url, name }) => {
+    try {
+      const res  = await fetch(url);
+      const blob = await res.blob();
+      cache[key] = URL.createObjectURL(blob);
+    } catch(e) {
+      cache[key] = url; // fallback to raw URL
+    }
+    tick(name);
   }));
 }
 
@@ -1739,14 +1760,7 @@ function startClashPlayback() {
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
 }
 
-function refreshClashVideos() {
-  // After each clash, reload all preloaded clash videos to prevent memory release
-  document.querySelectorAll('[id^="pre-clash-"]').forEach(v => {
-    const src = v.src;
-    v.src = '';
-    setTimeout(() => { v.src = src; v.load(); }, 100);
-  });
-}
+function refreshClashVideos() { /* blob URLs stay in memory — nothing to refresh */ }
 
 function playCustomClash(vidUrl, result, c0key, c1key) {
   const c0 = CARDS[c0key] || {color:'#fff', name:c0key};
@@ -1755,19 +1769,10 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
-  // Reuse the preloaded video element so it's already buffered — avoids race condition on mobile
-  const preId = 'pre-clash-' + c0key + '-' + c1key;
-  const altId = 'pre-clash-' + c1key + '-' + c0key;
-  const preloaded = document.getElementById(preId) || document.getElementById(altId);
-
-  let vid;
-  if (preloaded && preloaded.readyState >= 2) {
-    vid = preloaded.cloneNode(true);
-  } else {
-    vid = document.createElement('video');
-    vid.src = vidUrl;
-    vid.preload = 'auto';
-  }
+  // Use blob URL from preloader — already in memory, instant playback
+  const blobUrl = clashBlobCache[vidUrl] || vidUrl;
+  let vid = document.createElement('video');
+  vid.src = blobUrl;
   vid.autoplay = false;
   vid.muted = true;
   vid.playsInline = true;
@@ -2131,39 +2136,6 @@ if ('serviceWorker' in navigator) {
 }
 
 </script>
-<!-- Hidden preloaded videos - ensure browser caches them before clash -->
-<div style="display:none" aria-hidden="true">
-  <video id="pre-fire"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/fire.mp4"      muted loop playsinline preload="auto"></video>
-  <video id="pre-ice"       src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/ice.mp4"       muted loop playsinline preload="auto"></video>
-  <video id="pre-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/lightning.mp4" muted loop playsinline preload="auto"></video>
-  <video id="pre-rock"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rock.mp4"      muted loop playsinline preload="auto"></video>
-  <video id="pre-wind"      src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/female-wind.mp4"      muted loop playsinline preload="auto"></video>
-  <video id="pre-rubber"    src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/rubber.mp4"    muted loop playsinline preload="auto"></video>
-  <video id="pre-plant"     src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/plant.mp4"     muted loop playsinline preload="auto"></video>
-  <video muted id="pre-clash-fire-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-ice.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-ice-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rock.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-wind-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-lightning.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-fire-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-plant.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-rubber-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-lightning.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-fire-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-fire-wind.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-plant-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rock.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-rock-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-fire.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-wind-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-plant.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-ice-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-plant-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-wind-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-female-wind-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-rock-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-rubber.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-rock-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rock-female-wind.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-lightning-plant" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-plant.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-lightning-rock" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-rock.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-ice-wind" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-female-wind.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-plant-ice" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-plant-ice.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-lightning-fire" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-lightning-fire.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-fire-rubber" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-rubber-fire.mp4" playsinline webkit-playsinline preload="auto"></video>
-  <video muted id="pre-clash-ice-lightning" src="https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/clash-ice-lightning.mp4" playsinline webkit-playsinline preload="auto"></video>
-
-
-
-</div>
+<!-- videos preloaded as blobs at startup -->
 </body>
 </html>
