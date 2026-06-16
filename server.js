@@ -261,7 +261,8 @@ wss.on('connection', (ws) => {
       const t = clients.get(msg.targetId);
       if (!t || t.role !== 'streamer' || t.status !== 'idle') { send(ws, { type: 'error', msg: 'Player unavailable' }); return; }
       client.status = 'challenging';
-      send(t.ws, { type: 'challenge_received', fromId: id, fromName: client.name, config: msg.config || { mode: 'wins', value: 5 } });
+      client.pendingConfig = msg.config || { mode: 'wins', value: 5 };
+      send(t.ws, { type: 'challenge_received', fromId: id, fromName: client.name, config: client.pendingConfig });
       send(ws, { type: 'challenge_sent', toId: msg.targetId, toName: t.name });
     }
 
@@ -270,11 +271,12 @@ wss.on('connection', (ws) => {
         const chal = clients.get(msg.fromId); if (!chal) return;
         const battleId = 'b' + Date.now();
         const startHands = [dealHand(), dealHand()];
-        const battle = { id: battleId, players: [msg.fromId, id], names: [chal.name, client.name], phase: 'setup', format: null, scores: [0, 0], hp: [100, 100], choices: [null, null], locked: [false, false], hands: startHands, lastCards: [null, null], effects: { burn: [false, false], freeze: [false, false] }, log: [], round: 0, elementalGifts: [0, 0] };
+        const pendingConfig = chal.pendingConfig || { mode: 'wins', value: 5 };
+        const battle = { id: battleId, players: [msg.fromId, id], names: [chal.name, client.name], phase: 'setup', format: pendingConfig, scores: [0, 0], hp: [100, 100], choices: [null, null], locked: [false, false], hands: startHands, lastCards: [null, null], effects: { burn: [false, false], freeze: [false, false] }, log: [], round: 0, elementalGifts: [0, 0] };
         battles.set(battleId, battle);
         [msg.fromId, id].forEach((pid, seat) => {
           const c = clients.get(pid); if (c) { c.battleId = battleId; c.status = 'battling'; }
-          send(clients.get(pid)?.ws, { type: 'battle_start', battleId, seat, opponentName: battle.names[1 - seat], opponentId: battle.players[1 - seat], hand: battle.hands[seat], phase: 'setup', isInitiator: seat === 0 });
+          send(clients.get(pid)?.ws, { type: 'battle_start', battleId, seat, opponentName: battle.names[1 - seat], opponentId: battle.players[1 - seat], hand: battle.hands[seat], phase: 'setup', isInitiator: seat === 0, config: pendingConfig });
         });
         broadcast({ type: 'battle_created', battleId, names: battle.names });
         broadcastStreamers();
@@ -289,8 +291,9 @@ wss.on('connection', (ws) => {
 
     else if (msg.type === 'battle_setup') {
       const battle = battles.get(client.battleId); if (!battle || battle.phase !== 'setup') return;
-      battle.format = msg.format;
-      if (msg.format.type === 'hp') battle.hp = [msg.format.value, msg.format.value];
+      // Use format from challenge config (already stored); seat 0 may override
+      if (msg.format) battle.format = msg.format;
+      if (battle.format?.type === 'hp') battle.hp = [battle.format.value, battle.format.value];
       battle.phase = 'picking'; battle.round = 1;
       notifyAll(battle, { type: 'battle_setup_done', format: battle.format, round: 1, hp: battle.hp, scores: [0, 0] });
     }
