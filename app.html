@@ -553,6 +553,7 @@ window.addEventListener('load', async () => {
   // Preload all clash videos as blob URLs before showing login
   await preloadAllVideos();
   showScreen('screen-login');
+  // videos_ready will be sent after login_ok (WS may not be open yet)
 });
 
 // ════════════════════════════════════════════════════════════════════
@@ -584,6 +585,7 @@ function handle(m) {
 
     case 'login_ok':
       myId = m.id;
+      wsSend({ type: 'videos_ready' }); // videos already preloaded
       $('lb-name').textContent = myName.toUpperCase();
       $('lb-role').textContent = myRole === 'streamer' ? '📡 STREAMER' : '👁 SPECTATOR';
       if (myRole === 'streamer') {
@@ -664,47 +666,14 @@ function handle(m) {
       }
       break;
 
-    case 'clash_start':
-      // Both players ready — start synchronized playback
-      if (pendingClashData) {
-        startClashPlayback();
-      }
-      // Fire mid-animation UI updates relative to this sync point
-      if (pendingRoundResult) {
-        const pr = pendingRoundResult;
-        pendingRoundResult = null;
-        if (pr.dmg) {
-          setTimeout(() => {
-            if (pr.dmg[0] > 0) showDamage(0, pr.dmg[0]);
-            if (pr.dmg[1] > 0) showDamage(1, pr.dmg[1]);
-          }, 9000);
-        }
-        setTimeout(() => {
-          const sc = pr.scores || pr.wins;
-          if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
-          if (pr.hp) {
-            const cfg = battleState.config || battleConfig;
-            if (cfg && cfg.mode === 'hp') {
-              [0,1].forEach(i => {
-                const seat = i === 0 ? mySeat : 1-mySeat;
-                const pct = Math.max(0, (pr.hp[seat] || 0) / cfg.value * 100);
-                $('hp-bar'+i).style.width = pct + '%';
-                $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
-                $('hp-text'+i).textContent = pr.hp[seat] + ' HP';
-              });
-            }
-          }
-          addBattleLog(pr.reason, pr.winner === -1 ? '#aaa' : 'var(--gold)');
-          if (pr.matchWinner >= 0) {
-            battleState.phase = 'gameover';
-            setTimeout(() => { clearStageCards(); handleMatchOver(pr); }, 2500);
-          }
-        }, 12000);
-      }
+    case 'clash_info':
+      // Server resolved the round and tells us which video to prep
+      handleClashInfo(m);
       break;
 
-    case 'round_result':
-      handleRoundResult(m);
+    case 'clash_play':
+      // Server says both players are ready — play NOW
+      if (pendingClashData) startClashPlayback();
       break;
 
     case 'match_over':
@@ -1151,7 +1120,8 @@ function receiveGiftCard(m) {
 // ════════════════════════════════════════════════════════════════════
 // ROUND RESULT + ANIME ANIMATION
 // ════════════════════════════════════════════════════════════════════
-function handleRoundResult(m) {
+function handleClashInfo(m) {
+  // Server tells us what happened and which video to show
   const myServerCard = m.choices?.[mySeat];
   const oppServerCard = m.choices?.[1-mySeat];
   const myInfo = {...(CARDS[myServerCard] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:myServerCard};
@@ -1159,15 +1129,47 @@ function handleRoundResult(m) {
   showCardOnStage(0, myInfo);
   showCardOnStage(1, oppInfo);
 
-  // Schedule damage/score UI updates to fire mid-animation (~9s and ~12s after clash_start)
-  pendingRoundResult = m;
-
-  // Set up clash animation now — video blob is in memory so this is synchronous
   const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
+
+  // Build clash overlay — blobs already in memory so this is instant
   animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
 
-  // Tell server we're ready — server fires clash_start when both players signal
+  // Tell server we're prepped and ready to play
   wsSend({ type: 'clash_ready' });
+
+  // Schedule mid-animation UI updates (relative to when clash_play arrives)
+  // Store them on pendingClashData so startClashPlayback can arm them
+  if (pendingClashData) {
+    pendingClashData.onPlay = () => {
+      if (m.dmg) {
+        setTimeout(() => {
+          if (m.dmg[0] > 0) showDamage(0, m.dmg[0]);
+          if (m.dmg[1] > 0) showDamage(1, m.dmg[1]);
+        }, 9000);
+      }
+      setTimeout(() => {
+        const sc = m.scores || m.wins;
+        if (sc) $('stat-score').textContent = (sc[mySeat]||0) + ' — ' + (sc[1-mySeat]||0);
+        if (m.hp) {
+          const cfg = battleState.config || battleConfig;
+          if (cfg && cfg.mode === 'hp') {
+            [0,1].forEach(i => {
+              const seat = i === 0 ? mySeat : 1-mySeat;
+              const pct = Math.max(0, (m.hp[seat]||0) / cfg.value * 100);
+              $('hp-bar'+i).style.width = pct + '%';
+              $('hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
+              $('hp-text'+i).textContent = m.hp[seat] + ' HP';
+            });
+          }
+        }
+        addBattleLog(m.reason, m.winner === -1 ? '#aaa' : 'var(--gold)');
+        if (m.matchWinner >= 0) {
+          battleState.phase = 'gameover';
+          setTimeout(() => { clearStageCards(); handleMatchOver(m); }, 2500);
+        }
+      }, 12000);
+    };
+  }
 }
 
 function handleMatchOver(m) {
@@ -1738,10 +1740,11 @@ let pendingRoundResult = null;
 
 function startClashPlayback() {
   if (!pendingClashData) return;
-  // Cancel fallback timer — we're playing now
-  if (pendingClashFallback) { clearTimeout(pendingClashFallback); pendingClashFallback = null; }
   const data = pendingClashData;
   pendingClashData = null;
+
+  // Fire any scheduled UI updates
+  if (data.onPlay) data.onPlay();
 
   if (data.playAll) {
     // Elemental clash — play all creature videos
@@ -1797,12 +1800,7 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   // Set pendingClashData — startClashPlayback() is called by clash_start handler
   pendingClashData = { vid, overlay, result, c0, c1 };
 
-  // Fallback: if clash_start never arrives within 8s, play anyway
-  if (pendingClashFallback) clearTimeout(pendingClashFallback);
-  pendingClashFallback = setTimeout(() => {
-    pendingClashFallback = null;
-    if (pendingClashData) startClashPlayback();
-  }, 8000);
+  // Playback triggered by handleRoundResult's playAt timer
 
   // Show result when video ends or after 8 seconds
   const showResult = () => {
@@ -1963,12 +1961,7 @@ function animateClash(result, c0key, c1key) {
     }
   };
 
-  // Fallback: play after 8s if clash_start never arrives
-  if (pendingClashFallback) clearTimeout(pendingClashFallback);
-  pendingClashFallback = setTimeout(() => {
-    pendingClashFallback = null;
-    if (pendingClashData) startClashPlayback();
-  }, 8000);
+  // Playback triggered by handleRoundResult's playAt timer
 
   let fxParts=[],fxOn=true;
   const cx=window.innerWidth/2, cy=window.innerHeight*.45;
