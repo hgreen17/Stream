@@ -1778,8 +1778,11 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
-  // Use blob URL from preloader — already in memory, instant playback
-  const blobUrl = clashBlobCache[vidUrl] || vidUrl;
+  // Look up blob URL — clashBlobCache is keyed by full URL
+  // vidUrl from server may be a filename only; resolve to full URL first
+  const BASE = 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/';
+  const fullUrl = vidUrl.startsWith('http') ? vidUrl : BASE + vidUrl;
+  const blobUrl = clashBlobCache[fullUrl] || fullUrl;
   let vid = document.createElement('video');
   vid.src = blobUrl;
   vid.autoplay = false;
