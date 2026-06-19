@@ -453,26 +453,77 @@ async function preloadAllVideos() {
   });
 
   const total = tasks.length;
-  let done = 0;
+  let confirmedDone = 0;
 
-  const tick = (name) => {
-    done++;
-    const p = Math.round(done / total * 100);
+  const updateBar = (label_text) => {
+    const p = total > 0 ? Math.round(confirmedDone / total * 100) : 100;
     if (bar)   bar.style.width = p + '%';
     if (pct)   pct.textContent = p + '%';
-    if (label) label.textContent = name + '...';
+    if (label) label.textContent = label_text;
   };
 
-  await Promise.all(tasks.map(async ({ cache, key, url, name }) => {
+  // Validate that a blob URL actually produces a playable video — not just
+  // that fetch() succeeded. This catches truncated/corrupt downloads too.
+  const validateBlobPlayable = (blobUrl) => new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.muted = true;
+    v.preload = 'auto';
+    const cleanup = () => { v.src = ''; v.removeAttribute('src'); v.load(); };
+    const onOk = () => { cleanup(); resolve(true); };
+    const onFail = () => { cleanup(); resolve(false); };
+    v.addEventListener('loadedmetadata', onOk, { once: true });
+    v.addEventListener('error', onFail, { once: true });
+    v.src = blobUrl;
+    // Don't wait forever on validation itself
+    setTimeout(() => resolve(v.readyState >= 1), 4000);
+  });
+
+  // Fetch + validate one video. Returns true only on confirmed success.
+  const fetchOne = async ({ cache, key, url, name }) => {
     try {
-      const res  = await fetch(url);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const blob = await res.blob();
-      cache[key] = URL.createObjectURL(blob);
-    } catch(e) {
-      cache[key] = url; // fallback to raw URL
+      if (blob.size === 0) throw new Error('empty blob');
+      const blobUrl = URL.createObjectURL(blob);
+      const playable = await validateBlobPlayable(blobUrl);
+      if (!playable) { URL.revokeObjectURL(blobUrl); throw new Error('blob not playable'); }
+      cache[key] = blobUrl;
+      return true;
+    } catch (e) {
+      console.warn('[preload]', name, 'attempt failed:', e && e.message);
+      return false;
     }
-    tick(name);
-  }));
+  };
+
+  // Keep retrying every unconfirmed task, with backoff, until ALL succeed.
+  // No silent fallback — gameplay does not start until every video is confirmed.
+  let pending = tasks.slice();
+  let round = 0;
+  while (pending.length > 0) {
+    round++;
+    updateBar(`loading videos (${confirmedDone}/${total})${round > 1 ? ' — retry ' + round : ''}...`);
+
+    const results = await Promise.all(pending.map(t => fetchOne(t)));
+    const stillPending = [];
+    pending.forEach((t, i) => {
+      if (results[i]) {
+        confirmedDone++;
+        updateBar(`loaded ${t.name} (${confirmedDone}/${total})...`);
+      } else {
+        stillPending.push(t);
+      }
+    });
+    pending = stillPending;
+
+    if (pending.length > 0) {
+      const backoff = Math.min(1000 * round, 5000);
+      updateBar(`retrying ${pending.length} video(s) in ${Math.round(backoff/1000)}s...`);
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+
+  updateBar('all videos ready!');
 }
 
 // ── VIDEO PRELOAD CACHE ──────────────────────────────────────────
@@ -1841,28 +1892,36 @@ function startClashPlayback() {
   const tryPlay = () => {
     const p = vid.play();
     if (p && p.then) {
-      p.then(unmuteSoon).catch((err) => {
+      p.then(unmuteSoon).catch(() => {
         const src = vid.src;
         vid.src = '';
         vid.src = src;
-        vid.play().then(unmuteSoon).catch((err2) => {
-          showClashError('E2', (err2 && err2.name) || 'playback failed');
-        });
+        vid.play().then(unmuteSoon).catch(() => {});
       });
     } else {
       unmuteSoon();
     }
   };
-  // Try immediately — don't wait on onseeked, which may never fire if currentTime is already 0
   tryPlay();
-  // Retry once more shortly after in case the first attempt was rejected for timing reasons
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
-  // Final check — if still paused after 2.5s, surface error
+
+  // Hard recovery: whatever the cause — autoplay block, dead blob, slow
+  // cellular fetch — if the video isn't actually advancing by 3s, stop
+  // waiting on it and show the result directly so the game keeps moving.
+  let recovered = false;
+  const recover = () => {
+    if (recovered) return;
+    recovered = true;
+    showClashError('E3', 'video stalled — skipping to result');
+    if (data.showResult) data.showResult();
+  };
   setTimeout(() => {
-    if (vid.paused) {
-      showClashError('E3', 'video never started (readyState=' + vid.readyState + ')');
-    }
-  }, 2500);
+    if (vid.paused || vid.readyState < 2) recover();
+  }, 3000);
+  // Also recover if the video starts but stalls partway through (buffering forever)
+  vid.addEventListener('waiting', () => {
+    setTimeout(() => { if (vid.readyState < 3) recover(); }, 4000);
+  });
 }
 
 function refreshClashVideos() { /* blob URLs stay in memory — nothing to refresh */ }
@@ -1879,10 +1938,12 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const BASE = 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/';
   const fullUrl = vidUrl.startsWith('http') ? vidUrl : BASE + vidUrl;
   const blobUrl = clashBlobCache[fullUrl] || fullUrl;
-  if (!clashBlobCache[fullUrl]) {
+  const wasPreloaded = !!clashBlobCache[fullUrl];
+  if (!wasPreloaded) {
     showClashError('E0', 'blob cache miss, using network URL');
   }
   let vid = document.createElement('video');
+  vid._wasPreloaded = wasPreloaded; // tag for diagnostics
   vid.muted = true; // must be set before src/DOM-attach for iOS autoplay reliability
   vid.autoplay = false;
   vid.playsInline = true;
@@ -1900,13 +1961,11 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
 
   document.body.appendChild(overlay);
 
-  // Set pendingClashData — startClashPlayback() is called by clash_start handler
-  pendingClashData = { vid, overlay, result, c0, c1 };
-
-  // Playback triggered by handleRoundResult's playAt timer
-
-  // Show result when video ends or after 8 seconds
+  // Show result when video ends, after 15s, or via forced recovery
+  let resultShown = false;
   const showResult = () => {
+    if (resultShown) return;
+    resultShown = true;
     const winEl = result.winner===0 ? c0 : result.winner===1 ? c1 : null;
     if (winEl) {
       rtEl.textContent = winEl.name + ' WINS!';
@@ -1931,6 +1990,11 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
       }, 800);
     }, 3000);
   };
+
+  // Set pendingClashData — startClashPlayback() is called by clash_start handler
+  pendingClashData = { vid, overlay, result, c0, c1, showResult };
+
+  // Playback triggered by handleRoundResult's playAt timer
 
   vid.onended = showResult;
   setTimeout(showResult, 15000); // fallback matches 15s video length
