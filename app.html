@@ -514,6 +514,15 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
 }
+function showClashError(code, detail) {
+  const badge = document.createElement('div');
+  badge.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#a00;color:#fff;padding:8px 14px;border-radius:8px;font-family:monospace;font-size:12px;box-shadow:0 2px 10px rgba(0,0,0,.5);max-width:90vw;text-align:center;';
+  badge.textContent = '⚠ CLASH ERROR [' + code + ']' + (detail ? ': ' + detail : '');
+  document.body.appendChild(badge);
+  setTimeout(() => badge.remove(), 6000);
+  console.error('[CLASH ERROR]', code, detail);
+}
+
 function toast(msg, color='var(--teal)') {
   const t = document.createElement('div');
   t.className = 'toast';
@@ -1754,19 +1763,30 @@ function startClashPlayback() {
 
   // Custom clash — single fullscreen video
   const vid = data.vid;
+  if (!vid.src || vid.src === window.location.href) {
+    showClashError('E1', 'missing video src');
+  }
   vid.muted = false;
   vid.currentTime = 0;
   const tryPlay = () => {
     const p = vid.play();
-    if (p && p.catch) p.catch(() => {
+    if (p && p.catch) p.catch((err) => {
       const src = vid.src;
       vid.src = '';
       vid.src = src;
-      vid.play().catch(() => {});
+      vid.play().catch((err2) => {
+        showClashError('E2', (err2 && err2.name) || 'playback failed');
+      });
     });
   };
   vid.onseeked = () => { vid.onseeked = null; tryPlay(); };
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
+  // Final check — if still paused/blank after 2.5s, surface error
+  setTimeout(() => {
+    if (vid.paused || vid.readyState < 2) {
+      showClashError('E3', 'video never started (readyState=' + vid.readyState + ')');
+    }
+  }, 2500);
 }
 
 function refreshClashVideos() { /* blob URLs stay in memory — nothing to refresh */ }
@@ -1783,6 +1803,9 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const BASE = 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/';
   const fullUrl = vidUrl.startsWith('http') ? vidUrl : BASE + vidUrl;
   const blobUrl = clashBlobCache[fullUrl] || fullUrl;
+  if (!clashBlobCache[fullUrl]) {
+    showClashError('E0', 'blob cache miss, using network URL');
+  }
   let vid = document.createElement('video');
   vid.src = blobUrl;
   vid.autoplay = false;
@@ -1956,10 +1979,11 @@ function animateClash(result, c0key, c1key) {
         const card = i === 0 ? c0 : c1;
         const key = i === 0 ? c0key : c1key;
         const vid = overlay.querySelector('#clash-vid-'+side);
-        if (!vid) return;
+        if (!vid) { showClashError('E4', 'missing video element: ' + side); return; }
+        if (!videoCache[key]) showClashError('E0', 'blob cache miss (elemental): ' + key);
         vid.src = videoCache[key] || card.vid;
         vid.currentTime = 0;
-        vid.play().catch(() => {});
+        vid.play().catch((err) => showClashError('E2', (err && err.name) || 'elemental playback failed'));
       });
     }
   };
