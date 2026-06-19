@@ -1136,10 +1136,11 @@ function playCard() {
   showCardOnStage(0, {...info, card:item.card}); // always show my card on left
 
   // Watchdog: if clash_info never arrives (server error, dropped message),
-  // surface an error instead of leaving the player frozen on "waiting"
-  const roundAtPlay = battleState.round;
+  // surface an error instead of leaving the player frozen on "waiting".
+  // Snapshot the counter — if it hasn't changed in 10s, the server never responded.
+  const countAtPlay = clashInfoReceivedCount;
   setTimeout(() => {
-    if (hasPlayed && battleState.round === roundAtPlay && !pendingClashData) {
+    if (hasPlayed && clashInfoReceivedCount === countAtPlay) {
       showClashError('E9', 'no response from server after play_card');
     }
   }, 10000);
@@ -1155,6 +1156,8 @@ function receiveGiftCard(m) {
 // ROUND RESULT + ANIME ANIMATION
 // ════════════════════════════════════════════════════════════════════
 function handleClashInfo(m) {
+  // Mark that the server responded for this round — watchdog uses this
+  clashInfoReceivedCount++;
   // Server tells us what happened and which video to show
   const myServerCard = m.choices?.[mySeat];
   const oppServerCard = m.choices?.[1-mySeat];
@@ -1786,6 +1789,7 @@ function clearStageCards() {
 
 let pendingClashData = null;
 let pendingClashFallback = null; // cancellable fallback timer
+let clashInfoReceivedCount = 0; // increments each time clash_info is processed for the current round
 let pendingRoundResult = null;
 
 function startClashPlayback() {
