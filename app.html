@@ -1100,6 +1100,7 @@ function renderHand() {
     }
     if (!disabled) {
       el.addEventListener('click', () => {
+        unlockVideoAutoplay(); // earliest tap — unlock iOS autoplay as soon as possible
         selectedCard = (selectedCard===item.id) ? null : item.id;
         renderHand(); updatePlayBtn();
       });
@@ -1119,7 +1120,29 @@ function updatePlayBtn() {
   }
 }
 
+function unlockVideoAutoplay() {
+  // iOS Safari only allows the FIRST video.play() call per page session to count
+  // as "user-gesture blessed" if it happens synchronously inside a tap handler.
+  // Bless a throwaway muted video here — this unlocks autoplay for the rest
+  // of the session, including the clash videos triggered later by clash_play.
+  if (window._iosUnlocked) return;
+  window._iosUnlocked = true;
+  try {
+    const unlock = document.createElement('video');
+    unlock.muted = true;
+    unlock.setAttribute('muted', '');
+    unlock.playsInline = true;
+    unlock.setAttribute('playsinline', '');
+    unlock.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAACAGlzb21pc28y';
+    const p = unlock.play();
+    if (p && p.then) p.then(() => unlock.pause()).catch(() => {});
+  } catch (e) {}
+}
+
 function playCard() {
+  // Must run synchronously inside this tap handler, before anything async
+  unlockVideoAutoplay();
+
   if (selectedCard === null || hasPlayed || battleState.phase !== 'picking') return;
   const item = myHand.find(h => h.id === selectedCard);
   if (!item) return;
