@@ -619,6 +619,10 @@ window.addEventListener('load', async () => {
 // ════════════════════════════════════════════════════════════════════
 // WEBSOCKET
 // ════════════════════════════════════════════════════════════════════
+let _reconnectAttempts = 0;
+let _reconnectTimer = null;
+let _intentionalClose = false;
+
 function connectWS() {
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('192.168.');
   const url = isLocal
@@ -626,20 +630,54 @@ function connectWS() {
     : 'wss://' + location.hostname;
   try { ws = new WebSocket(url); } catch(e) { $('ln-err').textContent = 'Cannot connect to server'; return; }
   ws.onopen = () => {
+    _reconnectAttempts = 0;
     ws.send(JSON.stringify({ type: 'login', name: myName, role: myRole }));
   };
   ws.onmessage = e => { let m; try{m=JSON.parse(e.data);}catch{return;} handle(m); };
   ws.onclose = () => {
     toast('Disconnected from server', 'var(--red)');
-    if (battleState && battleState.phase && battleState.phase !== 'gameover') {
-      showClashError('E10', 'WebSocket disconnected mid-battle — reload to reconnect');
+    const wasInBattle = battleState && battleState.phase && battleState.phase !== 'gameover';
+    if (wasInBattle) {
+      showClashError('E10', 'connection lost — reconnecting...');
+    }
+    if (!_intentionalClose) {
+      _reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(1.5, _reconnectAttempts), 8000);
+      clearTimeout(_reconnectTimer);
+      _reconnectTimer = setTimeout(connectWS, delay);
     }
   };
   ws.onerror = () => { $('ln-err').textContent = 'Server connection failed. Is server.js running?'; };
 }
 
-function wsSend(data) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
+let _wsSendQueue = []; // critical messages waiting for reconnect
+
+function wsSend(data, critical) {
+  if (ws && ws.readyState === 1) {
+    try {
+      ws.send(JSON.stringify(data));
+      return true;
+    } catch (e) {
+      console.warn('[wsSend] threw while sending', data.type, e);
+    }
+  }
+  // Connection isn't open — this send did NOT go through
+  console.warn('[wsSend] dropped message (readyState=' + (ws ? ws.readyState : 'null') + '):', data.type);
+  if (critical) {
+    _wsSendQueue.push(data);
+    showClashError('NET', 'connection lost — will resend ' + data.type + ' on reconnect');
+  }
+  return false;
+}
+
+function flushWsSendQueue() {
+  if (!ws || ws.readyState !== 1) return;
+  const queue = _wsSendQueue;
+  _wsSendQueue = [];
+  queue.forEach(data => {
+    console.log('[wsSend] resending queued message:', data.type);
+    wsSend(data, true);
+  });
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -651,6 +689,7 @@ function handle(m) {
     case 'login_ok':
       myId = m.id;
       wsSend({ type: 'videos_ready' }); // videos already preloaded
+      flushWsSendQueue(); // resend anything that failed to send before reconnect
       $('lb-name').textContent = myName.toUpperCase();
       $('lb-role').textContent = myRole === 'streamer' ? '📡 STREAMER' : '👁 SPECTATOR';
       if (myRole === 'streamer') {
@@ -794,6 +833,38 @@ function handle(m) {
     case 'opponent_left':
       toast('Opponent disconnected', 'var(--red)');
       setTimeout(leaveBattle, 2000);
+      break;
+
+    case 'opponent_disconnected':
+      if (m.seat !== mySeat) {
+        toast('Opponent connection lost — waiting for them to reconnect...', 'var(--red)');
+      }
+      break;
+
+    case 'opponent_reconnected':
+      if (m.seat !== mySeat) {
+        toast('Opponent reconnected!', 'var(--teal)');
+      }
+      break;
+
+    case 'battle_rejoin':
+      // We reconnected mid-battle — restore state instead of resetting to lobby
+      mySeat = m.seat;
+      battleId = m.battleId;
+      opponentId = m.opponentId;
+      battleConfig = m.format;
+      myHand = (m.hand || []).map(c => ({ id: cardIdCtr++, card: c }));
+      battleState = { phase: m.phase, hp: m.hp, scores: m.scores, round: m.round, config: m.format };
+      hasPlayed = false;
+      selectedCard = null;
+      showScreen('screen-battle');
+      renderHand();
+      updatePlayBtn();
+      setBattleStatus('Reconnected! Select a card and play.');
+      toast('Reconnected to your battle', 'var(--teal)');
+      // Re-establish WebRTC for camera/spectator streaming
+      if (peerConn) { peerConn.close(); peerConn = null; }
+      setTimeout(() => setupWebRTC(mySeat === 0), 500);
       break;
 
     // WebRTC signaling
@@ -1199,7 +1270,7 @@ function playCard() {
   if (!item) return;
   myHand = myHand.filter(h => h.id !== selectedCard);
   hasPlayed = true;
-  wsSend({ type: 'play_card', card: item.card });
+  wsSend({ type: 'play_card', card: item.card }, true);
   selectedCard = null;
   renderHand();
   updatePlayBtn();
@@ -1262,7 +1333,7 @@ function handleClashInfo(m) {
   }, 8000);
 
   // Tell server we're prepped and ready to play
-  wsSend({ type: 'clash_ready' });
+  wsSend({ type: 'clash_ready' }, true);
 
   // Schedule mid-animation UI updates (relative to when clash_play arrives)
   // Store them on pendingClashData so startClashPlayback can arm them
@@ -1986,7 +2057,7 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
       setTimeout(() => {
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         refreshClashVideos();
-        wsSend({ type: 'clash_done' }); // tell server this client finished
+        wsSend({ type: 'clash_done' }, true); // tell server this client finished
       }, 800);
     }, 3000);
   };

@@ -247,7 +247,38 @@ wss.on('connection', (ws) => {
       client.name = msg.name.slice(0, 20);
       client.role = msg.role;
       client.status = 'idle';
-      send(ws, { type: 'login_ok', id, name: client.name, role: client.role });
+
+      // Check if this name matches a player who recently disconnected from an
+      // active battle — if so, reconnect them to it instead of starting fresh.
+      let rejoinBattle = null, rejoinSeat = -1;
+      for (const [bid, b] of battles) {
+        if (b.phase !== 'gameover' && b.disconnectedSeat !== undefined && b.disconnectedSeat !== null) {
+          if (b.names[b.disconnectedSeat] === client.name) {
+            rejoinBattle = b; rejoinSeat = b.disconnectedSeat;
+            break;
+          }
+        }
+      }
+
+      if (rejoinBattle) {
+        if (rejoinBattle.disconnectGraceTimeout) { clearTimeout(rejoinBattle.disconnectGraceTimeout); rejoinBattle.disconnectGraceTimeout = null; }
+        rejoinBattle.disconnectedSeat = null;
+        rejoinBattle.players[rejoinSeat] = id;
+        client.battleId = rejoinBattle.id;
+        client.status = 'battling';
+        send(ws, { type: 'login_ok', id, name: client.name, role: client.role });
+        send(ws, {
+          type: 'battle_rejoin', battleId: rejoinBattle.id, seat: rejoinSeat,
+          opponentName: rejoinBattle.names[1 - rejoinSeat], opponentId: rejoinBattle.players[1 - rejoinSeat],
+          hand: rejoinBattle.hands[rejoinSeat], phase: rejoinBattle.phase,
+          scores: rejoinBattle.scores, hp: rejoinBattle.hp, round: rejoinBattle.round,
+          format: rejoinBattle.format, log: rejoinBattle.log.slice(-10),
+        });
+        notifyAll(rejoinBattle, { type: 'opponent_reconnected', name: client.name, seat: rejoinSeat });
+        console.log('[rejoin] ' + client.name + ' reconnected to battle ' + rejoinBattle.id + ' seat ' + rejoinSeat);
+      } else {
+        send(ws, { type: 'login_ok', id, name: client.name, role: client.role });
+      }
       broadcastStreamers();
     }
 
@@ -455,8 +486,21 @@ wss.on('connection', (ws) => {
     if (c.battleId) {
       const battle = battles.get(c.battleId);
       if (battle && battle.phase !== 'gameover' && battle.players.includes(id)) {
-        battle.phase = 'gameover';
-        notifyAll(battle, { type: 'opponent_left', name: c.name });
+        const seat = battle.players.indexOf(id);
+        // Grace period: don't end the battle immediately. Give the player
+        // a window to reconnect (flaky cellular, brief drop) before declaring
+        // them gone. The disconnected seat is marked so play_card etc. fail
+        // gracefully in the meantime rather than the battle just vanishing.
+        battle.disconnectedSeat = seat;
+        notifyAll(battle, { type: 'opponent_disconnected', name: c.name, seat });
+        battle.disconnectGraceTimeout = setTimeout(() => {
+          // Still gone after grace period — now actually end it
+          const stillBattle = battles.get(c.battleId);
+          if (stillBattle && stillBattle.disconnectedSeat === seat && stillBattle.phase !== 'gameover') {
+            stillBattle.phase = 'gameover';
+            notifyAll(stillBattle, { type: 'opponent_left', name: c.name });
+          }
+        }, 25000); // 25s grace period to reconnect
       }
     }
     clients.delete(id);
