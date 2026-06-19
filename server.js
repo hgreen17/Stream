@@ -338,8 +338,28 @@ wss.on('connection', (ws) => {
     }
 
     else if (msg.type === 'play_card') {
-      const battle = battles.get(client.battleId); if (!battle || battle.phase !== 'picking') return;
-      const seat = battle.players.indexOf(id); if (seat === -1 || battle.locked[seat]) return;
+      const battle = battles.get(client.battleId);
+      if (!battle) {
+        console.warn('[play_card] no battle found for client', id, 'battleId=', client.battleId);
+        send(ws, { type: 'clash_error', code: 'SERVER_E2', detail: 'no battle found' });
+        return;
+      }
+      if (battle.phase !== 'picking') {
+        console.warn('[play_card] wrong phase, battle=' + battle.id + ' phase=' + battle.phase + ' client=' + id);
+        send(ws, { type: 'clash_error', code: 'SERVER_E3', detail: 'wrong phase: ' + battle.phase });
+        return;
+      }
+      const seat = battle.players.indexOf(id);
+      if (seat === -1) {
+        console.warn('[play_card] client', id, 'not a player in battle', battle.id);
+        send(ws, { type: 'clash_error', code: 'SERVER_E4', detail: 'not a player in this battle' });
+        return;
+      }
+      if (battle.locked[seat]) {
+        console.warn('[play_card] seat', seat, 'already locked in battle', battle.id);
+        send(ws, { type: 'clash_error', code: 'SERVER_E5', detail: 'already locked this round' });
+        return;
+      }
       let card = msg.card;
       if (battle.effects.freeze[seat]) {
         battle.effects.freeze[seat] = false;
@@ -351,6 +371,7 @@ wss.on('connection', (ws) => {
       const idx = battle.hands[seat].indexOf(card);
       if (idx !== -1) battle.hands[seat].splice(idx, 1);
       battle.choices[seat] = card; battle.locked[seat] = true;
+      console.log('[play_card] battle=' + battle.id + ' seat=' + seat + ' card=' + card + ' locked=' + JSON.stringify(battle.locked));
       notifyAll(battle, { type: 'player_locked', seat, name: battle.names[seat] });
 
       if (battle.locked[0] && battle.locked[1]) {

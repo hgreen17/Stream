@@ -578,7 +578,12 @@ function connectWS() {
     ws.send(JSON.stringify({ type: 'login', name: myName, role: myRole }));
   };
   ws.onmessage = e => { let m; try{m=JSON.parse(e.data);}catch{return;} handle(m); };
-  ws.onclose = () => toast('Disconnected from server', 'var(--red)');
+  ws.onclose = () => {
+    toast('Disconnected from server', 'var(--red)');
+    if (battleState && battleState.phase && battleState.phase !== 'gameover') {
+      showClashError('E10', 'WebSocket disconnected mid-battle — reload to reconnect');
+    }
+  };
   ws.onerror = () => { $('ln-err').textContent = 'Server connection failed. Is server.js running?'; };
 }
 
