@@ -1786,24 +1786,31 @@ function startClashPlayback() {
   if (!vid.src || vid.src === window.location.href) {
     showClashError('E1', 'missing video src');
   }
-  vid.muted = false;
+  // Browsers block unmuted autoplay outside a user gesture. Start muted
+  // (always allowed) then unmute immediately once playback actually begins.
+  vid.muted = true;
   vid.currentTime = 0;
+  const unmuteSoon = () => { setTimeout(() => { vid.muted = false; }, 50); };
   const tryPlay = () => {
     const p = vid.play();
-    if (p && p.catch) p.catch((err) => {
-      const src = vid.src;
-      vid.src = '';
-      vid.src = src;
-      vid.play().catch((err2) => {
-        showClashError('E2', (err2 && err2.name) || 'playback failed');
+    if (p && p.then) {
+      p.then(unmuteSoon).catch((err) => {
+        const src = vid.src;
+        vid.src = '';
+        vid.src = src;
+        vid.play().then(unmuteSoon).catch((err2) => {
+          showClashError('E2', (err2 && err2.name) || 'playback failed');
+        });
       });
-    });
+    } else {
+      unmuteSoon();
+    }
   };
   vid.onseeked = () => { vid.onseeked = null; tryPlay(); };
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
-  // Final check — if still paused/blank after 2.5s, surface error
+  // Final check — if still paused after 2.5s, surface error (readyState alone isn't proof of playback)
   setTimeout(() => {
-    if (vid.paused || vid.readyState < 2) {
+    if (vid.paused) {
       showClashError('E3', 'video never started (readyState=' + vid.readyState + ')');
     }
   }, 2500);
@@ -2002,6 +2009,7 @@ function animateClash(result, c0key, c1key) {
         if (!vid) { showClashError('E4', 'missing video element: ' + side); return; }
         if (!videoCache[key]) showClashError('E0', 'blob cache miss (elemental): ' + key);
         vid.src = videoCache[key] || card.vid;
+        vid.muted = true; // muted autoplay is always allowed
         vid.currentTime = 0;
         vid.play().catch((err) => showClashError('E2', (err && err.name) || 'elemental playback failed'));
       });
