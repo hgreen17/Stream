@@ -682,7 +682,11 @@ function handle(m) {
 
     case 'clash_play':
       // Server says both players are ready — play NOW
-      if (pendingClashData) startClashPlayback();
+      if (pendingClashData) {
+        startClashPlayback();
+      } else {
+        showClashError('E5', 'clash_play arrived but pendingClashData is null');
+      }
       break;
 
     case 'match_over':
@@ -1141,7 +1145,23 @@ function handleClashInfo(m) {
   const visualWinner = m.winner === -1 ? -1 : m.winner === mySeat ? 0 : 1;
 
   // Build clash overlay — blobs already in memory so this is instant
-  animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
+  try {
+    animateClash({...m, winner: visualWinner}, myServerCard, oppServerCard);
+  } catch (err) {
+    showClashError('E6', 'animateClash threw: ' + (err && err.message));
+  }
+
+  if (!pendingClashData) {
+    showClashError('E7', 'animateClash ran but pendingClashData still null');
+  }
+
+  // Watchdog: if clash_play never arrives within 8s, recover automatically
+  setTimeout(() => {
+    if (pendingClashData) {
+      showClashError('E8', 'clash_play never arrived — auto-recovering');
+      startClashPlayback();
+    }
+  }, 8000);
 
   // Tell server we're prepped and ready to play
   wsSend({ type: 'clash_ready' });
