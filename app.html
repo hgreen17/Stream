@@ -1811,9 +1811,8 @@ function startClashPlayback() {
   if (!vid.src || vid.src === window.location.href) {
     showClashError('E1', 'missing video src');
   }
-  // Browsers block unmuted autoplay outside a user gesture. Start muted
-  // (always allowed) then unmute immediately once playback actually begins.
-  vid.muted = true;
+  // Browsers block unmuted autoplay outside a user gesture. Video was created
+  // muted (see playCustomClash) — play first, then unmute once playback begins.
   vid.currentTime = 0;
   const unmuteSoon = () => { setTimeout(() => { vid.muted = false; }, 50); };
   const tryPlay = () => {
@@ -1831,9 +1830,11 @@ function startClashPlayback() {
       unmuteSoon();
     }
   };
-  vid.onseeked = () => { vid.onseeked = null; tryPlay(); };
+  // Try immediately — don't wait on onseeked, which may never fire if currentTime is already 0
+  tryPlay();
+  // Retry once more shortly after in case the first attempt was rejected for timing reasons
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
-  // Final check — if still paused after 2.5s, surface error (readyState alone isn't proof of playback)
+  // Final check — if still paused after 2.5s, surface error
   setTimeout(() => {
     if (vid.paused) {
       showClashError('E3', 'video never started (readyState=' + vid.readyState + ')');
@@ -1859,12 +1860,13 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
     showClashError('E0', 'blob cache miss, using network URL');
   }
   let vid = document.createElement('video');
-  vid.src = blobUrl;
+  vid.muted = true; // must be set before src/DOM-attach for iOS autoplay reliability
   vid.autoplay = false;
-  vid.muted = false;
   vid.playsInline = true;
   vid.setAttribute('playsinline', '');
   vid.setAttribute('webkit-playsinline', '');
+  vid.setAttribute('muted', ''); // also set as attribute — some browsers check this at parse time
+  vid.src = blobUrl;
   vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
   overlay.appendChild(vid);
 
@@ -1996,8 +1998,9 @@ function animateClash(result, c0key, c1key) {
     mediaWrap.appendChild(img);
     // Use blob URL from preloader — guaranteed in memory, no network fetch
     let vid = document.createElement('video');
+    vid.id = 'clash-vid-' + side;
     vid.src = videoCache[elKey] || el.vid;
-    vid.muted=false; vid.loop=true; vid.playsInline=true;
+    vid.muted = true; vid.loop = true; vid.playsInline = true;
     vid.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;inset:0;z-index:2;';
     mediaWrap.appendChild(vid);
     const nameEl = document.createElement('div');
@@ -2006,8 +2009,7 @@ function animateClash(result, c0key, c1key) {
     d.appendChild(mediaWrap);
     d.appendChild(nameEl);
     overlay.appendChild(d);
-    // Force play after appending to DOM
-    setTimeout(() => vid.play().catch(()=>{}), 50);
+    // Playback is triggered by playAll() once clash_play arrives — not here
     return d;
   }
   const leftEl = makeCreature(c0, c0key, 'left');
@@ -2033,10 +2035,10 @@ function animateClash(result, c0key, c1key) {
         const vid = overlay.querySelector('#clash-vid-'+side);
         if (!vid) { showClashError('E4', 'missing video element: ' + side); return; }
         if (!videoCache[key]) showClashError('E0', 'blob cache miss (elemental): ' + key);
-        vid.src = videoCache[key] || card.vid;
-        vid.muted = true; // muted autoplay is always allowed
         vid.currentTime = 0;
-        vid.play().catch((err) => showClashError('E2', (err && err.name) || 'elemental playback failed'));
+        vid.play().then(() => {
+          setTimeout(() => { vid.muted = false; }, 50);
+        }).catch((err) => showClashError('E2', (err && err.name) || 'elemental playback failed'));
       });
     }
   };
