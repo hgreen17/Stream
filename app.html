@@ -689,6 +689,13 @@ function handle(m) {
       }
       break;
 
+    case 'clash_error':
+      // Server-side failure resolving the round
+      showClashError(m.code || 'SERVER', m.detail || 'server-side error');
+      hasPlayed = false;
+      setBattleStatus('Round error — please play a card to continue.');
+      break;
+
     case 'match_over':
       handleMatchOver(m);
       break;
@@ -1122,6 +1129,15 @@ function playCard() {
   // Show card on stage
   const info = CARDS[item.card] || { icon:'?', name:item.card, color:'#fff', effect:'paper' };
   showCardOnStage(0, {...info, card:item.card}); // always show my card on left
+
+  // Watchdog: if clash_info never arrives (server error, dropped message),
+  // surface an error instead of leaving the player frozen on "waiting"
+  const roundAtPlay = battleState.round;
+  setTimeout(() => {
+    if (hasPlayed && battleState.round === roundAtPlay && !pendingClashData) {
+      showClashError('E9', 'no response from server after play_card');
+    }
+  }, 10000);
 }
 
 function receiveGiftCard(m) {

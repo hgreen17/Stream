@@ -355,7 +355,15 @@ wss.on('connection', (ws) => {
 
       if (battle.locked[0] && battle.locked[1]) {
         battle.phase = 'revealing';
-        resolveRound(battle);
+        try {
+          resolveRound(battle);
+        } catch (err) {
+          console.error('[resolveRound] threw:', err);
+          // Tell clients something broke instead of leaving them frozen
+          notifyPlayers(battle, { type: 'clash_error', code: 'SERVER_E1', detail: String(err && err.message || err) });
+          // Force the round to advance anyway so the game doesn't permanently stall
+          battle.phase = 'picking';
+        }
       }
     }
 
