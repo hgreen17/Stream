@@ -792,7 +792,9 @@ function handle(m) {
       break;
 
     case 'player_locked':
-      if (m.seat !== mySeat) {
+      if (m.seat === mySeat) {
+        myLockConfirmedCount++; // confirms our play_card actually reached the server
+      } else {
         setBattleStatus('Opponent locked in... waiting for you');
       }
       break;
@@ -1307,15 +1309,22 @@ function playCard() {
   const info = CARDS[item.card] || { icon:'?', name:item.card, color:'#fff', effect:'paper' };
   showCardOnStage(0, {...info, card:item.card}); // always show my card on left
 
-  // Watchdog: if clash_info never arrives (server error, dropped message),
-  // surface an error instead of leaving the player frozen on "waiting".
-  // Snapshot the counter — if it hasn't changed in 10s, the server never responded.
-  const countAtPlay = clashInfoReceivedCount;
+  // Two-stage watchdog:
+  // Stage 1 (5s): confirm the SERVER actually received our play_card at all.
+  // This only checks for a dropped/lost message — a real failure.
+  // Stage 2: once confirmed, we're just waiting on the opponent to play.
+  // That's normal gameplay and should never error, no matter how long it takes.
+  const lockCountAtPlay = myLockConfirmedCount;
+  const clashCountAtPlay = clashInfoReceivedCount;
+
   setTimeout(() => {
-    if (hasPlayed && clashInfoReceivedCount === countAtPlay) {
+    if (hasPlayed && myLockConfirmedCount === lockCountAtPlay && clashInfoReceivedCount === clashCountAtPlay) {
+      // Server never even confirmed receiving our card — message was likely dropped
       showClashError('E9', 'no response from server after play_card');
     }
-  }, 10000);
+    // If myLockConfirmedCount DID change, the server has our card — we're now
+    // just waiting on the opponent. No timeout, no error: let them take their time.
+  }, 5000);
 }
 
 function receiveGiftCard(m) {
@@ -1962,6 +1971,7 @@ function clearStageCards() {
 let pendingClashData = null;
 let pendingClashFallback = null; // cancellable fallback timer
 let clashInfoReceivedCount = 0; // increments each time clash_info is processed for the current round
+let myLockConfirmedCount = 0; // increments when server confirms OUR play_card was received
 let pendingRoundResult = null;
 
 function startClashPlayback() {
