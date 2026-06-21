@@ -2030,27 +2030,35 @@ function startClashPlayback() {
   const unmuteSoon = () => { setTimeout(() => { vid.muted = false; }, 50); };
   let playCallCount = 0;
   let playOutcome = 'never called';
+  let firstRejectName = null;
   const tryPlay = () => {
     playCallCount++;
+    // Re-assert muted immediately before every play() call — do not trust
+    // that it's still true from creation time. If anything ever flips it,
+    // an unmuted autoplay call will be rejected with NotAllowedError.
+    vid.muted = true;
     let p;
     try {
       p = vid.play();
     } catch (syncErr) {
-      playOutcome = 'play() threw synchronously: ' + (syncErr && syncErr.message);
+      playOutcome = 'play() threw synchronously: ' + (syncErr && syncErr.message) + ' muted=' + vid.muted;
       return;
     }
     if (p && p.then) {
-      playOutcome = 'pending (call #' + playCallCount + ')';
+      playOutcome = 'pending (call #' + playCallCount + ', muted=' + vid.muted + ')';
       p.then(() => {
         playOutcome = 'resolved';
         unmuteSoon();
       }).catch((err) => {
-        playOutcome = 'rejected: ' + (err && err.name) + ' ' + (err && err.message);
+        firstRejectName = (err && err.name) || 'unknown';
+        playOutcome = 'rejected: ' + firstRejectName + ' muted=' + vid.muted;
+        vid.muted = true; // re-assert before retry — do not assume it held
         const src = vid.src;
         vid.src = '';
         vid.src = src;
-        vid.play().then(() => { playOutcome = 'resolved on retry'; unmuteSoon(); })
-                   .catch((err2) => { playOutcome = 'rejected again: ' + (err2 && err2.name); });
+        vid.muted = true; // re-assert again after src reset, just in case
+        vid.play().then(() => { playOutcome = 'resolved on retry (1st was ' + firstRejectName + ')'; unmuteSoon(); })
+                   .catch((err2) => { playOutcome = '1st=' + firstRejectName + ' 2nd=' + ((err2 && err2.name) || 'unknown') + ' muted=' + vid.muted; });
       });
     } else {
       // play() returned undefined (older browsers) — assume it worked
