@@ -1257,7 +1257,6 @@ function renderHand() {
     }
     if (!disabled) {
       el.addEventListener('click', () => {
-        unlockVideoAutoplay(); // earliest tap — unlock iOS autoplay as soon as possible
         selectedCard = (selectedCard===item.id) ? null : item.id;
         renderHand(); updatePlayBtn();
       });
@@ -1294,6 +1293,7 @@ function unlockVideoAutoplay() {
     clashSoundVid.playsInline = true;
     clashSoundVid.setAttribute('playsinline', '');
     clashSoundVid.muted = false; // unmuted from creation, inside this gesture
+    clashSoundVid.volume = 0; // but silent — the player should never hear this blessing clip
     clashSoundVid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
     document.body.appendChild(clashSoundVid);
     // Use a preloaded blob if we have one yet; otherwise the raw URL (placeholder
@@ -1306,6 +1306,7 @@ function unlockVideoAutoplay() {
         // play to happen once; the real clash will resume on this same element.
         clashSoundVid.pause();
         clashSoundVid.currentTime = 0;
+        clashSoundVid.volume = 1; // restore full volume for the real clash later
       }).catch((err) => {
         console.warn('[unlock] gesture-blessed play failed:', err && err.name);
       });
