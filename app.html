@@ -455,8 +455,11 @@ async function preloadAllVideos() {
   const total = tasks.length;
   let confirmedDone = 0;
 
+  let activeStageProgress = {}; // taskKey -> 0..1 partial credit for visible movement
+
   const updateBar = (label_text) => {
-    const p = total > 0 ? Math.round(confirmedDone / total * 100) : 100;
+    const partial = Object.values(activeStageProgress).reduce((a, b) => a + b, 0);
+    const p = total > 0 ? Math.min(100, Math.round((confirmedDone + partial) / total * 100)) : 100;
     if (bar)   bar.style.width = p + '%';
     if (pct)   pct.textContent = p + '%';
     if (label) label.textContent = label_text;
@@ -478,22 +481,53 @@ async function preloadAllVideos() {
     setTimeout(() => resolve(v.readyState >= 1), 4000);
   });
 
-  // Fetch + validate one video. Returns true only on confirmed success.
+  // Fetch + validate one video. Reports progress at each stage so the bar
+  // visibly moves even before any single video fully completes.
   const fetchOne = async ({ cache, key, url, name }) => {
+    const taskKey = key + '|' + url;
     try {
+      activeStageProgress[taskKey] = 0.15;
+      updateBar(`downloading ${name}...`);
       const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
+      activeStageProgress[taskKey] = 0.5;
+      updateBar(`buffering ${name}...`);
       const blob = await res.blob();
       if (blob.size === 0) throw new Error('empty blob');
       const blobUrl = URL.createObjectURL(blob);
+      activeStageProgress[taskKey] = 0.85;
+      updateBar(`verifying ${name}...`);
       const playable = await validateBlobPlayable(blobUrl);
       if (!playable) { URL.revokeObjectURL(blobUrl); throw new Error('blob not playable'); }
       cache[key] = blobUrl;
+      delete activeStageProgress[taskKey];
       return true;
     } catch (e) {
+      delete activeStageProgress[taskKey];
       console.warn('[preload]', name, 'attempt failed:', e && e.message);
       return false;
     }
+  };
+
+  // Run with limited concurrency (4 at a time) instead of all-at-once.
+  // This keeps the progress bar moving steadily and avoids saturating a
+  // slow cellular connection with 30+ simultaneous video downloads.
+  const CONCURRENCY = 4;
+  const runBatch = async (items) => {
+    const results = new Array(items.length);
+    let nextIdx = 0;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+      while (nextIdx < items.length) {
+        const i = nextIdx++;
+        results[i] = await fetchOne(items[i]);
+        if (results[i]) {
+          confirmedDone++;
+          updateBar(`loaded ${items[i].name} (${confirmedDone}/${total})...`);
+        }
+      }
+    });
+    await Promise.all(workers);
+    return results;
   };
 
   // Keep retrying every unconfirmed task, with backoff, until ALL succeed.
@@ -504,16 +538,9 @@ async function preloadAllVideos() {
     round++;
     updateBar(`loading videos (${confirmedDone}/${total})${round > 1 ? ' — retry ' + round : ''}...`);
 
-    const results = await Promise.all(pending.map(t => fetchOne(t)));
+    const results = await runBatch(pending);
     const stillPending = [];
-    pending.forEach((t, i) => {
-      if (results[i]) {
-        confirmedDone++;
-        updateBar(`loaded ${t.name} (${confirmedDone}/${total})...`);
-      } else {
-        stillPending.push(t);
-      }
-    });
+    pending.forEach((t, i) => { if (!results[i]) stillPending.push(t); });
     pending = stillPending;
 
     if (pending.length > 0) {
@@ -848,19 +875,19 @@ function handle(m) {
       break;
 
     case 'battle_rejoin':
-      // We reconnected mid-battle — restore state instead of resetting to lobby
+      // We reconnected mid-battle — restore full UI state instead of resetting to lobby
       mySeat = m.seat;
       battleId = m.battleId;
       opponentId = m.opponentId;
       battleConfig = m.format;
       myHand = (m.hand || []).map(c => ({ id: cardIdCtr++, card: c }));
-      battleState = { phase: m.phase, hp: m.hp, scores: m.scores, round: m.round, config: m.format };
       hasPlayed = false;
       selectedCard = null;
       showScreen('screen-battle');
+      updateBattleUI(m.format);
+      applyBattleState({ ...m, config: m.format }); // updates score, HP, names, round, log on screen
       renderHand();
       updatePlayBtn();
-      setBattleStatus('Reconnected! Select a card and play.');
       toast('Reconnected to your battle', 'var(--teal)');
       // Re-establish WebRTC for camera/spectator streaming
       if (peerConn) { peerConn.close(); peerConn = null; }
@@ -1977,21 +2004,38 @@ function startClashPlayback() {
   setTimeout(() => { if (vid.paused) tryPlay(); }, 300);
 
   // Hard recovery: whatever the cause — autoplay block, dead blob, slow
-  // cellular fetch — if the video isn't actually advancing by 3s, stop
-  // waiting on it and show the result directly so the game keeps moving.
+  // cellular fetch — if the video isn't actually advancing, stop waiting
+  // on it and show the result directly so the game keeps moving.
   let recovered = false;
-  const recover = () => {
+  const recover = (reason) => {
     if (recovered) return;
     recovered = true;
-    showClashError('E3', 'video stalled — skipping to result');
+    showClashError('E3', reason);
     if (data.showResult) data.showResult();
   };
+
+  // Give more time before declaring a hard failure — decode start can be
+  // slow on older devices even with the blob already in memory, especially
+  // while WebRTC camera + canvas FX are also running.
   setTimeout(() => {
-    if (vid.paused || vid.readyState < 2) recover();
-  }, 3000);
-  // Also recover if the video starts but stalls partway through (buffering forever)
+    if (vid.paused || vid.readyState < 2) {
+      recover('video never started (readyState=' + vid.readyState + ')');
+    }
+  }, 6000);
+
+  // If playback genuinely stalls mid-clash (buffering), recover — but cancel
+  // if it resumes on its own first. A single 'waiting' event during normal
+  // playback (brief GC pause, frame drop) is common and not a real stall.
+  let stallTimer = null;
   vid.addEventListener('waiting', () => {
-    setTimeout(() => { if (vid.readyState < 3) recover(); }, 4000);
+    if (stallTimer) return; // already counting down
+    stallTimer = setTimeout(() => {
+      stallTimer = null;
+      if (vid.readyState < 3 && !vid.ended) recover('video stalled mid-playback — skipping to result');
+    }, 5000);
+  });
+  vid.addEventListener('playing', () => {
+    if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
   });
 }
 

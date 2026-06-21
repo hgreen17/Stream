@@ -225,9 +225,9 @@ function advanceRound(battle) {
   battle.locked = [false, false];
   battle.round++;
   battle.players.forEach((pid, seat) => {
-    const pool = [...ELEMENTS].sort(() => Math.random() - .5);
-    const newCards = pool.filter(e => !battle.hands[seat].includes(e)).slice(0, 2);
-    if (newCards.length < 2) newCards.push(...pool.slice(0, 2 - newCards.length));
+    // The 2 new cards dealt this round must not duplicate each other,
+    // but repeating a card the player already holds from a prior round is fine.
+    const newCards = [...ELEMENTS].sort(() => Math.random() - .5).slice(0, 2);
     battle.hands[seat].push(...newCards);
     send(clients.get(pid)?.ws, { type: 'new_round', round: battle.round, hand: battle.hands[seat], scores: battle.scores, hp: battle.hp });
   });
@@ -269,6 +269,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'login_ok', id, name: client.name, role: client.role });
         send(ws, {
           type: 'battle_rejoin', battleId: rejoinBattle.id, seat: rejoinSeat,
+          names: rejoinBattle.names,
           opponentName: rejoinBattle.names[1 - rejoinSeat], opponentId: rejoinBattle.players[1 - rejoinSeat],
           hand: rejoinBattle.hands[rejoinSeat], phase: rejoinBattle.phase,
           scores: rejoinBattle.scores, hp: rejoinBattle.hp, round: rejoinBattle.round,
