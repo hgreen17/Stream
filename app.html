@@ -1974,6 +1974,21 @@ let clashInfoReceivedCount = 0; // increments each time clash_info is processed 
 let myLockConfirmedCount = 0; // increments when server confirms OUR play_card was received
 let pendingRoundResult = null;
 
+// iOS Safari aggressively suspends video elements and JS timers when the
+// tab is backgrounded or the screen locks. A player who plays first and then
+// waits is the one most likely to have this happen to them while idle.
+// When the page becomes visible again, force-reload any pending clash video
+// so it's not left in a stale/suspended state when clash_play eventually fires.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && pendingClashData && pendingClashData.vid) {
+    const vid = pendingClashData.vid;
+    console.log('[visibility] page became visible again — reloading pending clash video');
+    const src = vid.src;
+    vid.load(); // re-initializes the media element after suspension
+    if (vid.src !== src) vid.src = src;
+  }
+});
+
 function startClashPlayback() {
   if (!pendingClashData) return;
   const data = pendingClashData;
@@ -1993,6 +2008,10 @@ function startClashPlayback() {
   if (!vid.src || vid.src === window.location.href) {
     showClashError('E1', 'missing video src');
   }
+  // Defensive: iOS may have silently suspended this element if the player
+  // was idle (screen dimmed, backgrounded) since it was created. Force a
+  // reload before attempting playback rather than trusting cached readyState.
+  vid.load();
   // Browsers block unmuted autoplay outside a user gesture. Video was created
   // muted (see playCustomClash) — play first, then unmute once playback begins.
   vid.currentTime = 0;
