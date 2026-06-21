@@ -659,9 +659,18 @@ function connectWS() {
   ws.onopen = () => {
     _reconnectAttempts = 0;
     ws.send(JSON.stringify({ type: 'login', name: myName, role: myRole }));
+    // Send a small heartbeat message every 20s — keeps the connection alive
+    // through proxies/load balancers that close connections after a period
+    // of silence (this is what was causing disconnects when sitting idle
+    // before selecting a card).
+    if (_heartbeatTimer) clearInterval(_heartbeatTimer);
+    _heartbeatTimer = setInterval(() => {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'app_ping' }));
+    }, 20000);
   };
   ws.onmessage = e => { let m; try{m=JSON.parse(e.data);}catch{return;} handle(m); };
   ws.onclose = () => {
+    if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
     toast('Disconnected from server', 'var(--red)');
     const wasInBattle = battleState && battleState.phase && battleState.phase !== 'gameover';
     if (wasInBattle) {
@@ -676,6 +685,7 @@ function connectWS() {
   };
   ws.onerror = () => { $('ln-err').textContent = 'Server connection failed. Is server.js running?'; };
 }
+let _heartbeatTimer = null;
 
 let _wsSendQueue = []; // critical messages waiting for reconnect
 
@@ -712,6 +722,10 @@ function flushWsSendQueue() {
 // ════════════════════════════════════════════════════════════════════
 function handle(m) {
   switch(m.type) {
+
+    case 'app_pong':
+      // Heartbeat acknowledgment — nothing to do, connection is alive
+      break;
 
     case 'login_ok':
       myId = m.id;

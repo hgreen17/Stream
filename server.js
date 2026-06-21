@@ -239,6 +239,13 @@ wss.on('connection', (ws) => {
   clients.set(id, { ws, name: null, role: null, status: 'idle', battleId: null, videosReady: false });
   send(ws, { type: 'connected', id, gifts: GIFTS });
 
+  // Heartbeat: keep the connection alive through any idle-timeout enforced by
+  // GoDaddy's hosting infrastructure or intermediary proxies. Without regular
+  // traffic, idle WebSocket connections get silently dropped after some
+  // threshold — this affected players who sat too long before picking a card.
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.on('message', (raw) => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
     const client = clients.get(id); if (!client) return;
@@ -287,6 +294,13 @@ wss.on('connection', (ws) => {
       // Client has preloaded all videos — mark as ready
       client.videosReady = true;
       console.log('[videos_ready] client ' + id + ' is ready');
+    }
+
+    else if (msg.type === 'app_ping') {
+      // Application-level heartbeat — some proxies only count actual message
+      // frames as "activity," not low-level WebSocket protocol pings. Echo
+      // back so the client knows the round-trip succeeded.
+      send(ws, { type: 'app_pong' });
     }
 
     else if (msg.type === 'challenge') {
@@ -509,6 +523,24 @@ wss.on('connection', (ws) => {
     broadcastStreamers();
   });
 });
+
+// Ping every connected client every 25s. Most idle-timeout thresholds on
+// hosting infra (load balancers, reverse proxies) are 30-60s of silence —
+// this keeps well under that. If a client doesn't respond to a ping with a
+// pong before the next interval, it's genuinely gone and we terminate it
+// (which triggers the normal close handler / grace-period reconnect logic).
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      ws.terminate();
+      return;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 25000);
+
+wss.on('close', () => clearInterval(heartbeatInterval));
 
 server.listen(PORT, () => {
   console.log(`\n╔══════════════════════════════════╗\n║  STREAM BATTLE Server            ║\n║  Port: ${PORT}                      ║\n╚══════════════════════════════════╝\n`);
