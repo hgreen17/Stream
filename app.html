@@ -1277,23 +1277,40 @@ function updatePlayBtn() {
   }
 }
 
+// The actual clash video element, created and blessed with sound inside a
+// real tap (playCard). Reused for every clash this session — per WebKit's
+// own policy, an element that started unmuted playback during a gesture
+// keeps that permission across later src swaps, as long as it's never
+// re-unmuted without a gesture. Confirmed working via isolated device testing.
+let clashSoundVid = null;
+const PLACEHOLDER_CLASH_VID = 'https://raw.githubusercontent.com/hgreen17/stream/main/assets/videos/fire.mp4';
+
 function unlockVideoAutoplay() {
-  // iOS Safari only allows the FIRST video.play() call per page session to count
-  // as "user-gesture blessed" if it happens synchronously inside a tap handler.
-  // Bless a throwaway muted video here — this unlocks autoplay for the rest
-  // of the session, including the clash videos triggered later by clash_play.
-  if (window._iosUnlocked) return;
-  window._iosUnlocked = true;
+  // Runs once per session, synchronously inside the PLAY CARD tap.
+  if (window._clashVidBlessed) return;
+  window._clashVidBlessed = true;
   try {
-    const unlock = document.createElement('video');
-    unlock.muted = true;
-    unlock.setAttribute('muted', '');
-    unlock.playsInline = true;
-    unlock.setAttribute('playsinline', '');
-    unlock.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAACAGlzb21pc28y';
-    const p = unlock.play();
-    if (p && p.then) p.then(() => unlock.pause()).catch(() => {});
-  } catch (e) {}
+    clashSoundVid = document.createElement('video');
+    clashSoundVid.playsInline = true;
+    clashSoundVid.setAttribute('playsinline', '');
+    clashSoundVid.muted = false; // unmuted from creation, inside this gesture
+    clashSoundVid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    document.body.appendChild(clashSoundVid);
+    // Use a preloaded blob if we have one yet; otherwise the raw URL (placeholder
+    // only needs to start playback briefly to plant the gesture, content doesn't matter)
+    clashSoundVid.src = clashBlobCache[PLACEHOLDER_CLASH_VID] || videoCache['fire'] || PLACEHOLDER_CLASH_VID;
+    const p = clashSoundVid.play();
+    if (p && p.then) {
+      p.then(() => {
+        // Immediately pause and rewind — we just needed the gesture-blessed
+        // play to happen once; the real clash will resume on this same element.
+        clashSoundVid.pause();
+        clashSoundVid.currentTime = 0;
+      }).catch((err) => {
+        console.warn('[unlock] gesture-blessed play failed:', err && err.name);
+      });
+    }
+  } catch (e) { console.warn('[unlock] threw:', e); }
 }
 
 function playCard() {
@@ -2040,15 +2057,18 @@ function startClashPlayback() {
   // outcome=[resolved]), then our own unmuteSoon() call immediately triggered
   // iOS to silently re-pause it. The clash video now plays muted throughout.
   vid.currentTime = 0;
+  const isGestureBlessed = (vid === clashSoundVid);
   let playCallCount = 0;
   let playOutcome = 'never called';
   let firstRejectName = null;
   const tryPlay = () => {
     playCallCount++;
-    // Re-assert muted immediately before every play() call — do not trust
-    // that it's still true from creation time. If anything ever flips it,
-    // an unmuted autoplay call will be rejected with NotAllowedError.
-    vid.muted = true;
+    if (!isGestureBlessed) {
+      // Fallback element only — re-assert muted before every play() call.
+      // The gesture-blessed element must stay unmuted=false; forcing it
+      // muted here would silence sound entirely, defeating the whole point.
+      vid.muted = true;
+    }
     let p;
     try {
       p = vid.play();
@@ -2063,11 +2083,11 @@ function startClashPlayback() {
       }).catch((err) => {
         firstRejectName = (err && err.name) || 'unknown';
         playOutcome = 'rejected: ' + firstRejectName + ' muted=' + vid.muted;
-        vid.muted = true; // re-assert before retry — do not assume it held
+        if (!isGestureBlessed) vid.muted = true; // re-assert before retry, fallback only
         const src = vid.src;
         vid.src = '';
         vid.src = src;
-        vid.muted = true; // re-assert again after src reset, just in case
+        if (!isGestureBlessed) vid.muted = true; // re-assert again after src reset, fallback only
         vid.play().then(() => { playOutcome = 'resolved on retry (1st was ' + firstRejectName + ')'; })
                    .catch((err2) => { playOutcome = '1st=' + firstRejectName + ' 2nd=' + ((err2 && err2.name) || 'unknown') + ' muted=' + vid.muted; });
       });
@@ -2140,18 +2160,33 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   if (!wasPreloaded) {
     showClashError('E0', 'blob cache miss, using network URL');
   }
-  let vid = document.createElement('video');
-  vid._wasPreloaded = wasPreloaded; // tag for diagnostics
-  vid._createdAt = Date.now();
-  vid.muted = true; // must be set before src/DOM-attach for iOS autoplay reliability
-  vid.autoplay = false;
-  vid.playsInline = true;
-  vid.setAttribute('playsinline', '');
-  vid.setAttribute('webkit-playsinline', '');
-  vid.setAttribute('muted', ''); // also set as attribute — some browsers check this at parse time
-  vid.src = blobUrl;
-  vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
-  overlay.appendChild(vid);
+  let vid;
+  if (clashSoundVid) {
+    // Reuse the gesture-blessed element from playCard's tap — per WebKit
+    // policy this carries its unmuted-autoplay permission across src swaps,
+    // confirmed via isolated device testing.
+    vid = clashSoundVid;
+    vid._wasPreloaded = wasPreloaded;
+    vid._createdAt = Date.now();
+    vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
+    vid.src = blobUrl;
+    overlay.appendChild(vid); // moving it into the visible overlay from its hidden position
+  } else {
+    // Fallback: no blessed element available (e.g. very first clash before
+    // any card was ever played, or unlock failed) — create muted as before.
+    vid = document.createElement('video');
+    vid._wasPreloaded = wasPreloaded;
+    vid._createdAt = Date.now();
+    vid.muted = true;
+    vid.autoplay = false;
+    vid.playsInline = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('webkit-playsinline', '');
+    vid.setAttribute('muted', '');
+    vid.src = blobUrl;
+    vid.style.cssText = 'width:100%;height:100%;max-height:100vh;object-fit:contain;display:block;';
+    overlay.appendChild(vid);
+  }
 
   // Result text overlay
   const rtEl = document.createElement('div');
@@ -2183,6 +2218,13 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
     setTimeout(() => {
       overlay.style.transition = 'opacity .8s'; overlay.style.opacity = '0';
       setTimeout(() => {
+        // Rescue the gesture-blessed video element before the overlay is
+        // deleted — we need to keep reusing this exact element forever.
+        if (clashSoundVid && clashSoundVid.parentNode === overlay) {
+          clashSoundVid.pause();
+          clashSoundVid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+          document.body.appendChild(clashSoundVid); // move back to hidden holding spot
+        }
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         refreshClashVideos();
         wsSend({ type: 'clash_done' }, true); // tell server this client finished
@@ -2306,6 +2348,24 @@ function animateClash(result, c0key, c1key) {
   const rtEl = document.createElement('div');
   rtEl.style.cssText = "position:absolute;left:50%;top:36%;transform:translate(-50%,-50%) scale(0);font-family:'Black Ops One',sans-serif;font-size:clamp(24px,7vw,60px);text-align:center;z-index:25;opacity:0;pointer-events:none;letter-spacing:3px;";
   overlay.appendChild(rtEl);
+
+  // Sound is muted by default (required for autoplay safety). Real click
+  // gesture lets the player opt in without triggering iOS's auto-pause.
+  const soundBtnEl = document.createElement('button');
+  soundBtnEl.textContent = '🔇 Tap for sound';
+  soundBtnEl.style.cssText = 'position:absolute;bottom:24px;left:50%;transform:translateX(-50%);z-index:1010;background:rgba(0,0,0,0.6);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:8px 16px;font-size:13px;font-family:sans-serif;cursor:pointer;backdrop-filter:blur(4px);';
+  soundBtnEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const lv = overlay.querySelector('#clash-vid-left');
+    const rv = overlay.querySelector('#clash-vid-right');
+    if (lv) lv.muted = false;
+    if (rv) rv.muted = false;
+    soundBtnEl.textContent = '🔊 Sound on';
+    setTimeout(() => { soundBtnEl.style.opacity = '0'; setTimeout(() => soundBtnEl.remove(), 300); }, 600);
+  });
+  overlay.appendChild(soundBtnEl);
+  setTimeout(() => { if (soundBtnEl.parentNode) { soundBtnEl.style.transition = 'opacity .3s'; soundBtnEl.style.opacity = '0'; setTimeout(() => soundBtnEl.remove(), 300); } }, 14000);
+
   document.body.appendChild(overlay);
 
   // Store in pendingClashData so clash_start triggers synchronized playback
