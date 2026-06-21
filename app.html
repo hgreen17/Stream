@@ -1978,20 +1978,13 @@ let clashInfoReceivedCount = 0; // increments each time clash_info is processed 
 let myLockConfirmedCount = 0; // increments when server confirms OUR play_card was received
 let pendingRoundResult = null;
 
-// iOS Safari aggressively suspends video elements and JS timers when the
-// tab is backgrounded or the screen locks. A player who plays first and then
-// waits is the one most likely to have this happen to them while idle.
-// When the page becomes visible again, force-reload any pending clash video
-// so it's not left in a stale/suspended state when clash_play eventually fires.
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && pendingClashData && pendingClashData.vid) {
-    const vid = pendingClashData.vid;
-    console.log('[visibility] page became visible again — reloading pending clash video');
-    const src = vid.src;
-    vid.load(); // re-initializes the media element after suspension
-    if (vid.src !== src) vid.src = src;
-  }
-});
+// NOTE: previously had a visibilitychange handler here that called vid.load()
+// on the pending clash video when the page became visible again, based on a
+// theory that iOS suspends idle video elements. Diagnostic data (idle=168ms,
+// vis=visible, pre=true, rs=4, err=none) showed no suspension was occurring —
+// the failure happened on a freshly-created, fully-ready video with zero idle
+// time. Removed: calling load() on an already-buffered blob is unnecessary
+// and risks resetting readyState right before playback is attempted.
 
 function startClashPlayback() {
   if (!pendingClashData) return;
@@ -2023,31 +2016,45 @@ function startClashPlayback() {
   if (!vid.src || vid.src === window.location.href) {
     showClashError('E1', 'missing video src');
   }
-  // Defensive: iOS may have silently suspended this element if the player
-  // was idle (screen dimmed, backgrounded) since it was created. Force a
-  // reload before attempting playback rather than trusting cached readyState.
-  vid.load();
-  console.log('[diag] after vid.load():', 'readyState=' + vid.readyState, 'networkState=' + vid.networkState, 'error=' + (vid.error ? (vid.error.code + ':' + vid.error.message) : 'none'));
+  // NOTE: previously called vid.load() here defensively, but that resets
+  // readyState back toward 0 and forces an async re-fetch — even for blob
+  // URLs already fully buffered in memory. Diagnostic data showed idle=168ms,
+  // vis=visible, pre=true, rs=4, err=none — i.e. NO suspension occurred, the
+  // video was perfectly ready. Calling load() right before play() was very
+  // likely racing play() against the reset, causing play() to silently no-op
+  // on an element the browser had just put back into a transitional state.
+  // Removed — blob URLs don't need reloading; they're already in memory.
   // Browsers block unmuted autoplay outside a user gesture. Video was created
   // muted (see playCustomClash) — play first, then unmute once playback begins.
   vid.currentTime = 0;
   const unmuteSoon = () => { setTimeout(() => { vid.muted = false; }, 50); };
+  let playCallCount = 0;
+  let playOutcome = 'never called';
   const tryPlay = () => {
-    const p = vid.play();
+    playCallCount++;
+    let p;
+    try {
+      p = vid.play();
+    } catch (syncErr) {
+      playOutcome = 'play() threw synchronously: ' + (syncErr && syncErr.message);
+      return;
+    }
     if (p && p.then) {
+      playOutcome = 'pending (call #' + playCallCount + ')';
       p.then(() => {
-        console.log('[diag] vid.play() resolved successfully at', Date.now());
+        playOutcome = 'resolved';
         unmuteSoon();
       }).catch((err) => {
-        console.warn('[diag] vid.play() rejected:', err && err.name, err && err.message, 'readyState=' + vid.readyState);
+        playOutcome = 'rejected: ' + (err && err.name) + ' ' + (err && err.message);
         const src = vid.src;
         vid.src = '';
         vid.src = src;
-        vid.play().then(unmuteSoon).catch((err2) => {
-          console.error('[diag] retry vid.play() also rejected:', err2 && err2.name, err2 && err2.message);
-        });
+        vid.play().then(() => { playOutcome = 'resolved on retry'; unmuteSoon(); })
+                   .catch((err2) => { playOutcome = 'rejected again: ' + (err2 && err2.name); });
       });
     } else {
+      // play() returned undefined (older browsers) — assume it worked
+      playOutcome = 'no promise returned (assumed ok)';
       unmuteSoon();
     }
   };
@@ -2071,7 +2078,8 @@ function startClashPlayback() {
   setTimeout(() => {
     if (vid.paused || vid.readyState < 2) {
       const diag = 'rs=' + vid.readyState + ' ns=' + vid.networkState + ' err=' +
-        (vid.error ? vid.error.code : 'none') + ' idle=' + idleMs + 'ms vis=' + document.visibilityState + ' pre=' + vid._wasPreloaded;
+        (vid.error ? vid.error.code : 'none') + ' idle=' + idleMs + 'ms vis=' + document.visibilityState +
+        ' pre=' + vid._wasPreloaded + ' playCalls=' + playCallCount + ' outcome=[' + playOutcome + ']';
       recover('video never started (' + diag + ')');
     }
   }, 6000);
