@@ -1129,7 +1129,12 @@ function startBattle(m) {
     const fmt = m.config || { mode: 'wins', value: 5 };
     wsSend({ type: 'battle_setup', format: { type: fmt.mode === 'hp' ? 'hp' : 'wins', value: fmt.value } });
   }
-  dealHand();
+  // Use the server-dealt hand (guaranteed duplicate-free) instead of
+  // generating a new one locally — dealHand() here was overwriting the
+  // correct server hand with a broken random draw that allowed duplicates.
+  if (m.hand) myHand = m.hand.map(c => ({ id: cardIdCtr++, card: c }));
+  else dealHand(); // fallback only if server somehow didn't send a hand
+  renderHand();
   setupWebRTC(m.isInitiator);
   if (pendingOffer) {
     setTimeout(() => { handleOffer(pendingOffer); pendingOffer = null; }, 200);
@@ -1208,13 +1213,12 @@ function updateBattleUI(cfg) {
 // HAND
 // ════════════════════════════════════════════════════════════════════
 function dealHand() {
+  // Fallback only — used if server somehow fails to send a hand.
+  // Shuffle a copy of the full element set and take 4 unique cards,
+  // matching the server's duplicate-free logic.
   myHand = [];
-  const pick = (arr, n) => {
-    const r = [];
-    for (let i=0;i<n;i++) r.push(arr[Math.floor(Math.random()*arr.length)]);
-    return r;
-  };
-  pick(BASE_DECK, 5).forEach(c => myHand.push({ id: cardIdCtr++, card: c }));
+  const shuffled = [...BASE_DECK].sort(() => Math.random() - .5);
+  shuffled.slice(0, 4).forEach(c => myHand.push({ id: cardIdCtr++, card: c }));
   renderHand();
 }
 
@@ -2005,6 +2009,17 @@ function startClashPlayback() {
 
   // Custom clash — single fullscreen video
   const vid = data.vid;
+  const idleMs = Date.now() - (vid._createdAt || Date.now());
+  console.log('[diag] startClashPlayback at', Date.now(),
+    'idleSinceCreated=' + idleMs + 'ms',
+    'pageVisible=' + document.visibilityState,
+    'wasPreloaded=' + vid._wasPreloaded,
+    'readyState(before load)=' + vid.readyState,
+    'networkState(before load)=' + vid.networkState,
+    'paused=' + vid.paused,
+    'error=' + (vid.error ? (vid.error.code + ':' + vid.error.message) : 'none'),
+    'src=' + (vid.src ? vid.src.slice(0, 60) : 'EMPTY')
+  );
   if (!vid.src || vid.src === window.location.href) {
     showClashError('E1', 'missing video src');
   }
@@ -2012,6 +2027,7 @@ function startClashPlayback() {
   // was idle (screen dimmed, backgrounded) since it was created. Force a
   // reload before attempting playback rather than trusting cached readyState.
   vid.load();
+  console.log('[diag] after vid.load():', 'readyState=' + vid.readyState, 'networkState=' + vid.networkState, 'error=' + (vid.error ? (vid.error.code + ':' + vid.error.message) : 'none'));
   // Browsers block unmuted autoplay outside a user gesture. Video was created
   // muted (see playCustomClash) — play first, then unmute once playback begins.
   vid.currentTime = 0;
@@ -2019,11 +2035,17 @@ function startClashPlayback() {
   const tryPlay = () => {
     const p = vid.play();
     if (p && p.then) {
-      p.then(unmuteSoon).catch(() => {
+      p.then(() => {
+        console.log('[diag] vid.play() resolved successfully at', Date.now());
+        unmuteSoon();
+      }).catch((err) => {
+        console.warn('[diag] vid.play() rejected:', err && err.name, err && err.message, 'readyState=' + vid.readyState);
         const src = vid.src;
         vid.src = '';
         vid.src = src;
-        vid.play().then(unmuteSoon).catch(() => {});
+        vid.play().then(unmuteSoon).catch((err2) => {
+          console.error('[diag] retry vid.play() also rejected:', err2 && err2.name, err2 && err2.message);
+        });
       });
     } else {
       unmuteSoon();
@@ -2048,7 +2070,9 @@ function startClashPlayback() {
   // while WebRTC camera + canvas FX are also running.
   setTimeout(() => {
     if (vid.paused || vid.readyState < 2) {
-      recover('video never started (readyState=' + vid.readyState + ')');
+      const diag = 'rs=' + vid.readyState + ' ns=' + vid.networkState + ' err=' +
+        (vid.error ? vid.error.code : 'none') + ' idle=' + idleMs + 'ms vis=' + document.visibilityState + ' pre=' + vid._wasPreloaded;
+      recover('video never started (' + diag + ')');
     }
   }, 6000);
 
@@ -2074,6 +2098,8 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   const c0 = CARDS[c0key] || {color:'#fff', name:c0key};
   const c1 = CARDS[c1key] || {color:'#fff', name:c1key};
 
+  console.log('[diag] playCustomClash called at', Date.now(), 'pageVisible:', document.visibilityState, 'hasPlayed:', hasPlayed, 'mySeat:', mySeat);
+
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
@@ -2088,6 +2114,7 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
   }
   let vid = document.createElement('video');
   vid._wasPreloaded = wasPreloaded; // tag for diagnostics
+  vid._createdAt = Date.now();
   vid.muted = true; // must be set before src/DOM-attach for iOS autoplay reliability
   vid.autoplay = false;
   vid.playsInline = true;
