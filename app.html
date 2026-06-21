@@ -805,6 +805,8 @@ function handle(m) {
       break;
 
     case 'clash_play':
+      lastClashPlayAt = Date.now();
+      console.log('[diag] clash_play received at', lastClashPlayAt, 'gap since clash_info=' + (lastClashPlayAt - lastClashInfoAt) + 'ms');
       // Server says both players are ready — play NOW
       if (pendingClashData) {
         startClashPlayback();
@@ -1341,6 +1343,8 @@ function receiveGiftCard(m) {
 // ROUND RESULT + ANIME ANIMATION
 // ════════════════════════════════════════════════════════════════════
 function handleClashInfo(m) {
+  lastClashInfoAt = Date.now();
+  console.log('[diag] clash_info received at', lastClashInfoAt, 'round=' + m.round);
   // Mark that the server responded for this round — watchdog uses this
   clashInfoReceivedCount++;
   // Server tells us what happened and which video to show
@@ -1373,6 +1377,7 @@ function handleClashInfo(m) {
   }, 8000);
 
   // Tell server we're prepped and ready to play
+  console.log('[diag] sending clash_ready at', Date.now());
   wsSend({ type: 'clash_ready' }, true);
 
   // Schedule mid-animation UI updates (relative to when clash_play arrives)
@@ -1975,6 +1980,8 @@ function clearStageCards() {
 let pendingClashData = null;
 let pendingClashFallback = null; // cancellable fallback timer
 let clashInfoReceivedCount = 0; // increments each time clash_info is processed for the current round
+let lastClashInfoAt = 0; // timestamp when clash_info was last received
+let lastClashPlayAt = 0; // timestamp when clash_play was last received
 let myLockConfirmedCount = 0; // increments when server confirms OUR play_card was received
 let pendingRoundResult = null;
 
@@ -2024,10 +2031,15 @@ function startClashPlayback() {
   // likely racing play() against the reset, causing play() to silently no-op
   // on an element the browser had just put back into a transitional state.
   // Removed — blob URLs don't need reloading; they're already in memory.
-  // Browsers block unmuted autoplay outside a user gesture. Video was created
-  // muted (see playCustomClash) — play first, then unmute once playback begins.
+  // Browsers block unmuted autoplay outside a user gesture, so the video is
+  // created muted and played muted (see playCustomClash). We do NOT unmute
+  // after play() resolves: per WebKit's own autoplay policy, "if a video
+  // element gains an audio track or becomes un-muted without a user gesture,
+  // playback will pause." That auto-pause-on-unmute behavior is exactly what
+  // was causing every E3 — play() succeeded (confirmed by diagnostics showing
+  // outcome=[resolved]), then our own unmuteSoon() call immediately triggered
+  // iOS to silently re-pause it. The clash video now plays muted throughout.
   vid.currentTime = 0;
-  const unmuteSoon = () => { setTimeout(() => { vid.muted = false; }, 50); };
   let playCallCount = 0;
   let playOutcome = 'never called';
   let firstRejectName = null;
@@ -2048,7 +2060,6 @@ function startClashPlayback() {
       playOutcome = 'pending (call #' + playCallCount + ', muted=' + vid.muted + ')';
       p.then(() => {
         playOutcome = 'resolved';
-        unmuteSoon();
       }).catch((err) => {
         firstRejectName = (err && err.name) || 'unknown';
         playOutcome = 'rejected: ' + firstRejectName + ' muted=' + vid.muted;
@@ -2057,13 +2068,12 @@ function startClashPlayback() {
         vid.src = '';
         vid.src = src;
         vid.muted = true; // re-assert again after src reset, just in case
-        vid.play().then(() => { playOutcome = 'resolved on retry (1st was ' + firstRejectName + ')'; unmuteSoon(); })
+        vid.play().then(() => { playOutcome = 'resolved on retry (1st was ' + firstRejectName + ')'; })
                    .catch((err2) => { playOutcome = '1st=' + firstRejectName + ' 2nd=' + ((err2 && err2.name) || 'unknown') + ' muted=' + vid.muted; });
       });
     } else {
       // play() returned undefined (older browsers) — assume it worked
       playOutcome = 'no promise returned (assumed ok)';
-      unmuteSoon();
     }
   };
   tryPlay();
@@ -2085,9 +2095,11 @@ function startClashPlayback() {
   // while WebRTC camera + canvas FX are also running.
   setTimeout(() => {
     if (vid.paused || vid.readyState < 2) {
+      const gap = lastClashPlayAt - lastClashInfoAt;
       const diag = 'rs=' + vid.readyState + ' ns=' + vid.networkState + ' err=' +
         (vid.error ? vid.error.code : 'none') + ' idle=' + idleMs + 'ms vis=' + document.visibilityState +
-        ' pre=' + vid._wasPreloaded + ' playCalls=' + playCallCount + ' outcome=[' + playOutcome + ']';
+        ' pre=' + vid._wasPreloaded + ' playCalls=' + playCallCount + ' outcome=[' + playOutcome + ']' +
+        ' infoToPlayGap=' + gap + 'ms';
       recover('video never started (' + diag + ')');
     }
   }, 6000);
@@ -2310,9 +2322,8 @@ function animateClash(result, c0key, c1key) {
         if (!vid) { showClashError('E4', 'missing video element: ' + side); return; }
         if (!videoCache[key]) showClashError('E0', 'blob cache miss (elemental): ' + key);
         vid.currentTime = 0;
-        vid.play().then(() => {
-          setTimeout(() => { vid.muted = false; }, 50);
-        }).catch((err) => showClashError('E2', (err && err.name) || 'elemental playback failed'));
+        vid.muted = true; // stays muted — unmuting without a gesture triggers iOS auto-pause
+        vid.play().catch((err) => showClashError('E2', (err && err.name) || 'elemental playback failed'));
       });
     }
   };
