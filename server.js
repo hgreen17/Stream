@@ -84,6 +84,15 @@ function notifySpectators(battle, data) {
 }
 function notifyAll(battle, data) { notifyPlayers(battle, data); notifySpectators(battle, data); }
 
+function getViewerCount(battle) {
+  let count = 0;
+  for (const [, c] of clients) if (c.battleId === battle.id && c.isSpectator) count++;
+  return count;
+}
+function broadcastViewerCount(battle) {
+  notifyAll(battle, { type: 'viewer_count', count: getViewerCount(battle) });
+}
+
 // ─── CLASH VIDEO MAP (same as client) ────────────────────────────────────────
 const CLASH_VIDEOS = {
   'fire-ice':         'clash-fire-ice.mp4',
@@ -193,10 +202,12 @@ function resolveRound(battle) {
 
   notifyPlayers(battle, { type: 'clash_info', ...battle.clashInfo });
 
-  // Spectators get the result immediately (no clash sync needed)
+  // Spectators get the SAME clash_info players do (including which video to
+  // play) — they just don't participate in the clash_ready handshake, since
+  // their playback only needs to be in sync with themselves, not each other.
   for (const [, c] of clients) {
     if (c.battleId === battle.id && c.isSpectator) {
-      send(c.ws, { type: 'watch_round_result', round: battle.round, choices: battle.choices, winner, reason, scores: battle.scores, hp: battle.hp, dmg, matchWinner, matchWinnerName: battle.clashInfo.matchWinnerName });
+      send(c.ws, { type: 'clash_info', ...battle.clashInfo });
     }
   }
 
@@ -210,6 +221,13 @@ function resolveRound(battle) {
 function sendClashPlay(battle) {
   if (battle.clashReadyTimeout) { clearTimeout(battle.clashReadyTimeout); battle.clashReadyTimeout = null; }
   notifyPlayers(battle, { type: 'clash_play' });
+  // Spectators get clash_play at the same moment — keeps the "live" feeling
+  // even though they don't participate in the ready-handshake themselves.
+  for (const [, c] of clients) {
+    if (c.battleId === battle.id && c.isSpectator) {
+      send(c.ws, { type: 'clash_play' });
+    }
+  }
 
   // After animation, advance round (or end match)
   if (battle.phase === 'revealing') {
@@ -358,16 +376,39 @@ wss.on('connection', (ws) => {
     else if (msg.type === 'spectator_watch') {
       const target = clients.get(msg.targetId); if (!target || !target.battleId) { send(ws, { type: 'error', msg: 'Player not in a battle' }); return; }
       const battle = battles.get(target.battleId); if (!battle) return;
-      let specCount = 0;
-      for (const [, c] of clients) if (c.battleId === battle.id && c.isSpectator) specCount++;
-      if (specCount >= 40) { send(ws, { type: 'error', msg: 'Stream is full' }); return; }
+      if (getViewerCount(battle) >= 40) { send(ws, { type: 'error', msg: 'Stream is full' }); return; }
       client.battleId = battle.id;
       client.isSpectator = true;
-      send(ws, { type: 'watch_ready', battleId: battle.id, names: battle.names, scores: battle.scores, hp: battle.hp });
+      // The streamer the spectator clicked on is who they're supporting —
+      // record their seat so the client can default gifts/highlighting to them.
+      const supportedSeat = battle.players.indexOf(msg.targetId);
+      client.supportedSeat = supportedSeat;
+      send(ws, { type: 'watch_ready', battleId: battle.id, names: battle.names, scores: battle.scores, hp: battle.hp, format: battle.format, round: battle.round, log: battle.log.slice(-10), supportedSeat, viewerCount: getViewerCount(battle) });
       battle.players.forEach((pid, seat) => {
         const p = clients.get(pid);
         if (p) send(p.ws, { type: 'spectator_watch_request', spectatorId: id, seat });
       });
+      broadcastViewerCount(battle);
+    }
+
+    else if (msg.type === 'leave_watch') {
+      // Spectator clicked LEAVE but is still connected — clean up their
+      // watching state and update the live viewer count for everyone else.
+      if (client.isSpectator && client.battleId) {
+        const battle = battles.get(client.battleId);
+        client.isSpectator = false;
+        client.battleId = null;
+        client.supportedSeat = null;
+        if (battle) broadcastViewerCount(battle);
+      }
+    }
+
+    else if (msg.type === 'chat_message') {
+      if (!client.battleId) return;
+      const battle = battles.get(client.battleId); if (!battle) return;
+      const text = String(msg.text || '').slice(0, 200).trim();
+      if (!text) return;
+      notifyAll(battle, { type: 'chat_message', name: client.name || 'Anonymous', text, role: client.role });
     }
 
     else if (msg.type === 'spectator_offer') {
@@ -516,6 +557,14 @@ wss.on('connection', (ws) => {
             notifyAll(stillBattle, { type: 'opponent_left', name: c.name });
           }
         }, 25000); // 25s grace period to reconnect
+      } else if (battle && c.isSpectator) {
+        // A viewer left — update the live count for everyone still watching.
+        // Compute after removing this client so the count is accurate.
+        clients.delete(id);
+        broadcastViewerCount(battle);
+        broadcast({ type: 'user_left', id });
+        broadcastStreamers();
+        return;
       }
     }
     clients.delete(id);

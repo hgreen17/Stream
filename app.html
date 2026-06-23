@@ -197,6 +197,33 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 /* ═══ TOAST ══════════════════════════════════════════════════════════════════ */
 #toast-container{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{background:var(--bg2);border:1px solid;padding:10px 20px;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;border-radius:4px;animation:toastIn .3s ease-out;white-space:nowrap}
+
+/* Viewer count badge — fixed top-right on battle/watch screens */
+#viewer-badge{position:fixed;top:10px;right:10px;z-index:60;background:#000000a0;backdrop-filter:blur(6px);border:1px solid #ffffff25;border-radius:20px;padding:5px 12px;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:#ffffffcc;display:none;align-items:center;gap:5px}
+#viewer-badge.show{display:flex}
+
+/* Persistent chat widget — fixed bottom-left, always visible on battle/watch screens.
+   Sits below the full-screen clash overlay (z-index 1000) so it doesn't compete
+   with the clash animation, but above all normal screen content. */
+#chat-widget{position:fixed;left:8px;bottom:8px;width:min(280px,46vw);z-index:55;display:none;flex-direction:column;background:#000000b0;backdrop-filter:blur(8px);border:1px solid #ffffff20;border-radius:10px;overflow:hidden}
+#chat-widget.show{display:flex}
+#chat-messages{max-height:140px;min-height:60px;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:4px;font-size:11px;line-height:1.4}
+#chat-messages::-webkit-scrollbar{width:3px}
+#chat-messages::-webkit-scrollbar-thumb{background:#ffffff25}
+.chat-line{word-break:break-word}
+.chat-line .chat-name{font-weight:700;letter-spacing:.5px}
+.chat-line .chat-text{color:#ffffffd0;margin-left:4px}
+.chat-line.chat-system{color:#ffffff60;font-style:italic}
+#chat-input-row{display:flex;border-top:1px solid #ffffff15}
+#chat-input{flex:1;background:transparent;border:none;color:#fff;padding:8px 10px;font-size:12px;outline:none;min-width:0}
+#chat-input::placeholder{color:#ffffff40}
+#chat-send-btn{background:none;border:none;color:var(--teal);padding:0 12px;font-size:13px;cursor:pointer;font-weight:700}
+
+@media (min-width: 768px) {
+  #chat-widget{width:300px}
+  #chat-messages{max-height:180px}
+}
+
 @keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
 
 /* ═══ LOG ════════════════════════════════════════════════════════════════════ */
@@ -322,7 +349,36 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
         <div id="watch-name-1" style="font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:2px;color:#ffffff60;margin-top:4px">PLAYER 2</div>
       </div>
     </div>
-    <div id="watch-score" style="text-align:center;font-family:Orbitron,sans-serif;font-size:18px;letter-spacing:6px;color:var(--gold);padding:8px">0 — 0</div>
+
+    <!-- Stats: HP bars, round, score — matches player battle screen -->
+    <div class="battle-stats">
+      <div class="stat-player">
+        <div class="stat-name" id="watch-stat-name0">Player 1</div>
+        <div class="hp-bar-wrap" id="watch-hp-wrap0" style="display:none">
+          <div class="hp-bar" id="watch-hp-bar0" style="width:100%"></div>
+        </div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--teal)" id="watch-hp-text0"></div>
+      </div>
+      <div style="text-align:center">
+        <div class="stat-round" id="watch-round-label">ROUND</div>
+        <div class="stat-score" id="watch-score">0 — 0</div>
+      </div>
+      <div class="stat-player" style="align-items:flex-end">
+        <div class="stat-name right" id="watch-stat-name1">Player 2</div>
+        <div class="hp-bar-wrap" id="watch-hp-wrap1" style="display:none;direction:rtl">
+          <div class="hp-bar" id="watch-hp-bar1" style="width:100%"></div>
+        </div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--gold)" id="watch-hp-text1"></div>
+      </div>
+    </div>
+
+    <!-- Stage: shows the cards as they're played, same as player view -->
+    <div id="watch-stage" style="position:relative;height:90px;display:flex;align-items:center;justify-content:center;gap:20px;padding:6px;">
+      <div id="watch-stage-card0" style="width:64px;"></div>
+      <div style="font-family:'Black Ops One',sans-serif;color:#ffffff30;font-size:14px;">VS</div>
+      <div id="watch-stage-card1" style="width:64px;"></div>
+    </div>
+
     <div id="watch-log" style="flex:1;padding:8px 14px;overflow-y:auto;font-size:11px;color:#ffffff70;letter-spacing:1px;line-height:1.8"></div>
     <div style="padding:10px;text-align:center">
       <button class="btn-cancel" onclick="leaveWatch()" style="padding:8px 24px;font-size:9px;letter-spacing:2px">LEAVE</button>
@@ -419,6 +475,18 @@ html,body{height:100%;background:var(--bg);color:#fff;font-family:'Rajdhani',san
 
 <!-- ═══ TOAST ══════════════════════════════════════════════════════════════════ -->
 <div id="toast-container"></div>
+
+<!-- ═══ VIEWER COUNT (battle + watch screens only) ═══════════════════════════════ -->
+<div id="viewer-badge">👁 <span id="viewer-count-num">0</span></div>
+
+<!-- ═══ PERSISTENT CHAT (battle + watch screens only) ════════════════════════════ -->
+<div id="chat-widget">
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <input id="chat-input" type="text" maxlength="200" placeholder="Say something..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+    <button id="chat-send-btn" onclick="sendChatMessage()">SEND</button>
+  </div>
+</div>
 
 <script>
 // ════════════════════════════════════════════════════════════════════
@@ -582,6 +650,9 @@ let myHand = [], selectedCard = null, hasPlayed = false;
 let cardIdCtr = 0;
 let localStream = null, peerConn = null;
 let battleState = {};
+let watchState = {};
+let watchConfig = null;
+let mySupportedSeat = null; // which seat (0 or 1) this spectator is rooting for — set from who they clicked in the lobby
 let isInitiator = false;
 
 // ════════════════════════════════════════════════════════════════════
@@ -591,6 +662,11 @@ const $ = id => document.getElementById(id);
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
+  // Chat + viewer count are only relevant while actively in a battle or
+  // watching one — hidden everywhere else (login, lobby, match-over modal sits above).
+  const relevant = (id === 'screen-battle' || id === 'screen-watch');
+  $('chat-widget').classList.toggle('show', relevant);
+  $('viewer-badge').classList.toggle('show', relevant);
 }
 function showClashError(code, detail) {
   const badge = document.createElement('div');
@@ -727,6 +803,14 @@ function handle(m) {
       // Heartbeat acknowledgment — nothing to do, connection is alive
       break;
 
+    case 'chat_message':
+      addChatLine(m.name, m.text, m.role);
+      break;
+
+    case 'viewer_count':
+      updateViewerCount(m.count || 0);
+      break;
+
     case 'login_ok':
       myId = m.id;
       wsSend({ type: 'videos_ready' }); // videos already preloaded
@@ -814,15 +898,20 @@ function handle(m) {
       break;
 
     case 'clash_info':
-      // Server resolved the round and tells us which video to prep
-      handleClashInfo(m);
+      if (myRole === 'spectator') {
+        handleWatchClashInfo(m);
+      } else {
+        // Server resolved the round and tells us which video to prep
+        handleClashInfo(m);
+      }
       break;
 
     case 'clash_play':
       lastClashPlayAt = Date.now();
       console.log('[diag] clash_play received at', lastClashPlayAt, 'gap since clash_info=' + (lastClashPlayAt - lastClashInfoAt) + 'ms');
-      // Server says both players are ready — play NOW
-      if (pendingClashData) {
+      if (myRole === 'spectator') {
+        if (pendingWatchClashData) startWatchClashPlayback();
+      } else if (pendingClashData) {
         startClashPlayback();
       } else {
         showClashError('E5', 'clash_play arrived but pendingClashData is null');
@@ -933,8 +1022,13 @@ function handle(m) {
 
     case 'watch_ready':
       showScreen('screen-watch');
-      $('watch-name-0').textContent = (m.names?.[0] || 'PLAYER 1').toUpperCase();
-      $('watch-name-1').textContent = (m.names?.[1] || 'PLAYER 2').toUpperCase();
+      clearChat();
+      updateViewerCount(m.viewerCount || 0);
+      $('watch-log').innerHTML = '';
+      $('watch-stage-card0').innerHTML = '';
+      $('watch-stage-card1').innerHTML = '';
+      mySupportedSeat = (typeof m.supportedSeat === 'number' && m.supportedSeat >= 0) ? m.supportedSeat : null;
+      applyWatchState(m);
       break;
 
     case 'spectator_watch_request':
@@ -1028,17 +1122,27 @@ let watchPeerConns = [null, null];
 let watchingInProgress = false;
 function watchStreamer(streamerId, streamerName) {
   if (watchingInProgress) return;
+  unlockVideoAutoplay(); // real tap — lets spectators get clash sound too
   watchingInProgress = true;
   wsSend({ type: 'spectator_watch', targetId: streamerId });
   toast('Joining ' + streamerName + "'s stream...", 'var(--purple)');
 }
 
 function leaveWatch() {
+  wsSend({ type: 'leave_watch' });
   watchingInProgress = false;
   watchPeerConns.forEach(pc => { if (pc) { try{pc.close();}catch(e){} } });
   watchPeerConns = [null, null];
   $('watch-video-0').srcObject = null;
   $('watch-video-1').srcObject = null;
+  $('watch-video-0').style.border = '1px solid #ffffff20';
+  $('watch-video-1').style.border = '1px solid #ffffff20';
+  mySupportedSeat = null;
+  // Clean up any in-flight clash overlay so it doesn't linger after leaving
+  if (pendingWatchClashData && pendingWatchClashData.overlay && pendingWatchClashData.overlay.parentNode) {
+    pendingWatchClashData.overlay.parentNode.removeChild(pendingWatchClashData.overlay);
+  }
+  pendingWatchClashData = null;
   showScreen('screen-lobby');
 }
 
@@ -1137,6 +1241,8 @@ function respondChallenge(accepted) {
 // ════════════════════════════════════════════════════════════════════
 function startBattle(m) {
   showScreen('screen-battle');
+  clearChat();
+  updateViewerCount(0);
   hasPlayed = false; selectedCard = null;
   // Set initial battle state so cards are enabled
   battleState = { phase: 'picking', hp: [100, 100], scores: [0, 0], round: 1 };
@@ -1212,6 +1318,204 @@ function applyBattleState(s) {
 
   // Log
   if (s.log) s.log.slice(-3).forEach(l => addBattleLog(l.msg, l.color));
+}
+
+function applyWatchState(s) {
+  watchState = s;
+  if (!s) return;
+  const cfg = s.format || watchConfig;
+  watchConfig = cfg;
+
+  $('watch-stat-name0').textContent = (s.names?.[0] || 'PLAYER 1').toUpperCase();
+  $('watch-stat-name1').textContent = (s.names?.[1] || 'PLAYER 2').toUpperCase();
+  $('watch-name-0').textContent = (s.names?.[0] || 'PLAYER 1').toUpperCase();
+  $('watch-name-1').textContent = (s.names?.[1] || 'PLAYER 2').toUpperCase();
+
+  if (cfg && cfg.mode === 'hp' || cfg && cfg.type === 'hp') {
+    [0,1].forEach(i => {
+      $('watch-hp-wrap'+i).style.display = 'block';
+      const pct = Math.max(0, (s.hp?.[i] || 0) / cfg.value * 100);
+      $('watch-hp-bar'+i).style.width = pct + '%';
+      $('watch-hp-bar'+i).className = 'hp-bar' + (pct < 30 ? ' low' : '');
+      $('watch-hp-text'+i).textContent = (s.hp?.[i] || 0) + ' HP';
+    });
+  }
+
+  const sc = s.scores || s.wins;
+  if (sc) $('watch-score').textContent = (sc[0]||0) + ' — ' + (sc[1]||0);
+  $('watch-round-label').textContent = 'ROUND ' + (s.round || 1);
+
+  if (s.log) s.log.slice(-3).forEach(l => addWatchLog(l.msg, l.color));
+
+  applySupportHighlight();
+}
+
+function applySupportHighlight() {
+  // Visually mark which player this spectator is rooting for — set when
+  // they clicked that streamer's entry in the lobby list.
+  [0, 1].forEach(seat => {
+    const vid = $('watch-video-' + seat);
+    const nameEl = $('watch-name-' + seat);
+    const statNameEl = $('watch-stat-name' + seat);
+    const isSupported = (mySupportedSeat === seat);
+    if (vid) vid.style.border = isSupported ? '2px solid var(--gold)' : '1px solid #ffffff20';
+    if (nameEl) {
+      const baseName = nameEl.textContent.replace('⭐ ', '');
+      nameEl.textContent = (isSupported ? '⭐ ' : '') + baseName;
+    }
+    if (statNameEl) statNameEl.style.color = isSupported ? 'var(--gold)' : '';
+  });
+}
+
+function addWatchLog(msg, color) {
+  const el = $('watch-log');
+  if (!el) return;
+  const line = document.createElement('div');
+  line.style.color = color || '#ffffff70';
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 40) el.removeChild(el.firstChild);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CHAT (shared between battle and watch screens)
+// ════════════════════════════════════════════════════════════════════
+function sendChatMessage() {
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  wsSend({ type: 'chat_message', text });
+  input.value = '';
+}
+
+function addChatLine(name, text, role) {
+  const el = $('chat-messages');
+  if (!el) return;
+  const line = document.createElement('div');
+  line.className = 'chat-line';
+  const nameColor = role === 'streamer' ? 'var(--teal)' : role === 'spectator' ? 'var(--purple)' : '#ffffff90';
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'chat-name';
+  nameSpan.style.color = nameColor;
+  nameSpan.textContent = name + ':';
+  const textSpan = document.createElement('span');
+  textSpan.className = 'chat-text';
+  textSpan.textContent = text;
+  line.appendChild(nameSpan);
+  line.appendChild(textSpan);
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 100) el.removeChild(el.firstChild);
+}
+
+function addChatSystemLine(text) {
+  const el = $('chat-messages');
+  if (!el) return;
+  const line = document.createElement('div');
+  line.className = 'chat-line chat-system';
+  line.textContent = text;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearChat() {
+  $('chat-messages').innerHTML = '';
+}
+
+function updateViewerCount(count) {
+  $('viewer-count-num').textContent = count;
+}
+
+function showWatchStageCard(seat, info) {
+  const el = $('watch-stage-card' + seat);
+  if (!el) return;
+  el.innerHTML = '';
+  const card = document.createElement('div');
+  card.style.cssText = `width:64px;height:88px;border-radius:6px;background:linear-gradient(160deg,${info.color}33,#0a0a14);border:2px solid ${info.color};display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;color:${info.color};letter-spacing:1px;`;
+  card.innerHTML = `<div style="font-size:22px;">${info.icon||'?'}</div><div style="margin-top:4px;">${(info.name||'').toUpperCase()}</div>`;
+  el.appendChild(card);
+}
+
+function showWatchDamage(seat, amount) {
+  const stage = $('watch-stage');
+  if (!stage) return;
+  const el = document.createElement('div');
+  el.className = 'dmg-number';
+  el.textContent = '-' + amount + ' HP';
+  el.style.color = seat === 0 ? 'var(--teal)' : 'var(--gold)';
+  el.style.left = (seat === 0 ? 20 : 60) + '%';
+  el.style.top = '10%';
+  stage.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+function handleWatchClashInfo(m) {
+  // Spectator version of handleClashInfo — no "my seat" perspective, seat 0
+  // is always left, seat 1 is always right. Reuses the exact same full-screen
+  // clash overlay (animateClash/playCustomClash) players see — same drama.
+  const c0card = m.choices?.[0];
+  const c1card = m.choices?.[1];
+  const c0Info = {...(CARDS[c0card] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:c0card};
+  const c1Info = {...(CARDS[c1card] || {icon:'?',name:'?',color:'#fff',effect:'paper'}), card:c1card};
+  showWatchStageCard(0, c0Info);
+  showWatchStageCard(1, c1Info);
+
+  // animateClash sets module-level pendingClashData — redirect it into our
+  // own spectator variable immediately after, so it doesn't collide with
+  // a player's own clash state (irrelevant here since myRole==='spectator'
+  // means pendingClashData is never otherwise used, but keep them separate
+  // for clarity and safety).
+  try {
+    animateClash(m, c0card, c1card);
+  } catch (err) {
+    showClashError('E6', 'animateClash (watch) threw: ' + (err && err.message));
+  }
+  pendingWatchClashData = pendingClashData;
+  pendingClashData = null;
+
+  if (!pendingWatchClashData) {
+    showClashError('E7', 'animateClash (watch) ran but pendingWatchClashData still null');
+  }
+
+  // No clash_ready handshake for spectators — just wait for clash_play.
+  // Watchdog: if it never arrives, recover on our own.
+  setTimeout(() => {
+    if (pendingWatchClashData) {
+      showClashError('E8', 'clash_play (watch) never arrived — auto-recovering');
+      startWatchClashPlayback();
+    }
+  }, 8000);
+
+  if (pendingWatchClashData) {
+    pendingWatchClashData.onPlay = () => {
+      if (m.dmg) {
+        setTimeout(() => {
+          if (m.dmg[0] > 0) showWatchDamage(0, m.dmg[0]);
+          if (m.dmg[1] > 0) showWatchDamage(1, m.dmg[1]);
+        }, 9000);
+      }
+      setTimeout(() => {
+        applyWatchState({ ...watchState, scores: m.scores, hp: m.hp, round: m.round, log: [{ msg: m.reason, color: m.winner === -1 ? '#aaa' : 'var(--gold)' }] });
+        if (m.matchWinner >= 0) {
+          setTimeout(() => {
+            $('watch-stage-card0').innerHTML = '';
+            $('watch-stage-card1').innerHTML = '';
+            toast('🏆 ' + (m.matchWinnerName || 'Someone') + ' WINS!', 'var(--gold)');
+          }, 2500);
+        }
+      }, 12000);
+    };
+  }
+}
+
+function startWatchClashPlayback() {
+  if (!pendingWatchClashData) return;
+  // Temporarily put it back into the shared variable so the existing
+  // startClashPlayback() logic (play/retry/mute handling) can run unmodified.
+  pendingClashData = pendingWatchClashData;
+  pendingWatchClashData = null;
+  startClashPlayback();
 }
 
 function updateBattleUI(cfg) {
@@ -2011,6 +2315,7 @@ function clearStageCards() {
 
 let pendingClashData = null;
 let pendingClashFallback = null; // cancellable fallback timer
+let pendingWatchClashData = null; // spectator's own pending clash (separate from players')
 let clashInfoReceivedCount = 0; // increments each time clash_info is processed for the current round
 let lastClashInfoAt = 0; // timestamp when clash_info was last received
 let lastClashPlayAt = 0; // timestamp when clash_play was last received
@@ -2242,7 +2547,9 @@ function playCustomClash(vidUrl, result, c0key, c1key) {
         }
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         refreshClashVideos();
-        wsSend({ type: 'clash_done' }, true); // tell server this client finished
+        if (myRole !== 'spectator') {
+          wsSend({ type: 'clash_done' }, true); // tell server this player finished
+        }
       }, 800);
     }, 3000);
   };
@@ -2450,7 +2757,7 @@ function animateClash(result, c0key, c1key) {
     rtEl.style.transition='none';rtEl.style.opacity='1';rtEl.style.transform='translate(-50%,-50%) scale(3)';
     setTimeout(()=>{rtEl.style.transition='transform .4s cubic-bezier(.15,1.4,.4,1)';rtEl.style.transform='translate(-50%,-50%) scale(1)';},20);
   },11600);
-  td(()=>{fxOn=false;overlay.style.transition='opacity .8s';overlay.style.opacity='0';setTimeout(()=>{if(overlay.parentNode)overlay.parentNode.removeChild(overlay);refreshClashVideos();wsSend({type:'clash_done'});},500);},15000);
+  td(()=>{fxOn=false;overlay.style.transition='opacity .8s';overlay.style.opacity='0';setTimeout(()=>{if(overlay.parentNode)overlay.parentNode.removeChild(overlay);refreshClashVideos();if(myRole!=='spectator')wsSend({type:'clash_done'},true);},500);},15000);
 }
 
 function showDamage(seat, amount) {
